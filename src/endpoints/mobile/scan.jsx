@@ -58,12 +58,16 @@ export function ScanScreen({ mode = 'qr', active }) {
 }
 
 function QrPanel({ active }) {
-  const { t, L, api, client, set, lang, toast } = useClient(); const { env } = useEnv(); const nav = useTargetNav(); const app = useApp();
+  const { t, L, api, client, set, lang, toast } = useClient(); const { env, setEnv } = useEnv(); const nav = useTargetNav(); const app = useApp();
   const canCam = cameraSupported(); const camMode = canCam && (client.scanMode || (app.standalone ? 'camera' : 'sim')) === 'camera';
   const [manual, setManual] = useState(''); const [err, setErr] = useState(null); const [busy, setBusy] = useState(false); const lastAuto = useRef(null);
-  const resolve = (code) => {
+  const seenTimer = useRef(null);
+  const resolve = (code, fromCamera) => {
     setErr(null); const res = api.triggers.resolve(code, 'qr');
     if (!res.ok) { setErr({ code, error: res.error, message: L(res.message) }); toast(L(res.message), 'error'); return; }
+    // Kod odczytany prawdziwym aparatem albo wpisany ręcznie: zapamiętaj go na 3 minuty jako „widziany” – gra terenowa zalicza wtedy krok „zeskanuj kod QR”
+    // (w symulatorze tę rolę pełni lista „Kod QR przed kamerą”).
+    if (fromCamera && res.trigger) { const seen = res.trigger.code; setEnv({ qrInView: seen }); clearTimeout(seenTimer.current); seenTimer.current = setTimeout(() => { if (getState().env.qrInView === seen) setEnv({ qrInView: null }); }, 180000); }
     const rec = { code, at: new Date().toISOString(), type: res.target.type, id: res.target.id, label: itemLabel(L, res) };
     set({ scans: [rec, ...(client.scans || []).filter((x) => x.code !== code)].slice(0, 12) });
     nav(res.target);
@@ -74,7 +78,7 @@ function QrPanel({ active }) {
     if (lastAuto.current === c) return; lastAuto.current = c; setBusy(true);
     const tm = setTimeout(() => { setBusy(false); resolve(c); }, 1100); return () => clearTimeout(tm);
   }, [env.qrInView, camMode]);
-  const manualForm = (<form class="m-manual" onSubmit={(e) => { e.preventDefault(); if (manual.trim()) resolve(manual.trim()); }}>
+  const manualForm = (<form class="m-manual" onSubmit={(e) => { e.preventDefault(); if (manual.trim()) resolve(manual.trim(), true); }}>
       <label class="fpz-field__label" for="m-manual-code">{t('m.scan.manual')}</label>
       <div class="m-manual__row"><Input id="m-manual-code" pill value={manual} placeholder={t('m.scan.manualPh')} onInput={(e) => setManual(e.currentTarget.value)} autocomplete="off" /><Button type="submit" variant="mint">{t('m.scan.check')}</Button></div>
     </form>);
@@ -82,7 +86,7 @@ function QrPanel({ active }) {
       <ul class="m-scanlist">{client.scans.map((x) => <li key={x.code + x.at}><button type="button" onClick={() => nav({ type: x.type, id: x.id })}><span class="m-scanlist__ico"><Icon name={TYPE_ICON[x.type] || 'qr'} size={18} /></span><span><b>{x.label || x.code}</b><small>{t('m.scan.t.' + x.type)} · {x.code} · {fmtDateTime(x.at, lang)}</small></span><Icon name="arrowRight" size={16} /></button></li>)}</ul></>);
   const modeSwitch = <div class="m-seg" role="group" aria-label={t('m.scan.mode')}><button type="button" class={clsx(camMode && 'is-on')} aria-pressed={camMode} disabled={!canCam} onClick={() => set({ scanMode: 'camera' })}><Icon name="camera" size={15} /> {t('m.scan.cam')}</button><button type="button" class={clsx(!camMode && 'is-on')} aria-pressed={!camMode} onClick={() => set({ scanMode: 'sim' })}><Icon name="qr" size={15} /> {t('m.scan.simMode')}</button></div>;
   if (camMode) return (<div class="m-stack">{modeSwitch}
-    <CameraScanner active={active !== false} onCode={(c) => resolve(c)} />
+    <CameraScanner active={active !== false} onCode={(c) => resolve(c, true)} />
     <p class="m-muted">{t('m.scan.camNote')}</p>
     {err && <Notice tone="danger"><b>{t('m.scan.err')}</b> – {err.message} <code>({err.error}: {err.code})</code></Notice>}
     {manualForm}{historyList}</div>);

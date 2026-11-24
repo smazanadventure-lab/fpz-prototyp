@@ -19,6 +19,8 @@ const stats = async () => (await (await fetch(base + '/__stats')).json());
 // 1. wszystkie końcówki pod własnymi adresami
 const shell = await device('powłoka', '/'); await shell.page.waitForSelector('.sh-root'); T('powłoka symulatora w trybie serwerowym', await shell.ev(() => window.__fpz.getState().net.mode === 'remote'));
 await shell.page.screenshot({ path: 'shots/srv-shell.png' });
+// test nie może zależeć od pory dnia: kioski i ekrany wyłączają się nocą wg harmonogramu, więc ustawiamy godzinę symulowaną
+await shell.ev(() => window.__fpz.makeApi('sim').env.set({ simTime: '12:00' })); await shell.until(() => window.__fpz.getState().net.pending === 0);
 const cms = await device('cms', '/cms', { width: 1400, height: 900 });
 const kiosk = await device('kiosk', '/kiosk/TZ.T1.3', { width: 540, height: 960 });
 const lcd = await device('lcd', '/lcd/LCD-01', { width: 1280, height: 720 });
@@ -29,6 +31,12 @@ const tel = await device('telefon', '/app', { width: 390, height: 844 }, { devic
 const tel2 = await device('telefon-2', '/app', { width: 360, height: 740 }, { deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 for (const d of [cms, kiosk, lcd, www, bil, mg, tel]) { await d.page.waitForTimeout(600); await d.page.screenshot({ path: `shots/srv-${d.name}.png` }); }
 T('kiosk: tylko ekran kiosku', await kiosk.page.locator('.sh-root').count() === 0 && (await kiosk.page.locator('body').innerText()).length > 20);
+// noc wg harmonogramu: ekran czarny + podpowiedź dla testera; po powrocie do dnia kiosk działa
+await shell.ev(() => window.__fpz.makeApi('sim').env.set({ simTime: '23:30' }));
+T('kiosk nocą: wyłączony z informacją o harmonogramie', await kiosk.until(() => !!document.querySelector('.sa-power') && /harmonogram/.test(document.querySelector('.sa-power').innerText)));
+await kiosk.page.screenshot({ path: 'shots/srv-kiosk-noc.png' });
+await shell.ev(() => window.__fpz.makeApi('sim').env.set({ simTime: '12:00' }));
+T('kiosk w dzień: włączony ponownie', await kiosk.until(() => !document.querySelector('.sa-power') && document.body.innerText.length > 20));
 T('różne identyfikatory urządzeń', (await tel.ev(() => window.__fpz.getState().deviceId)) !== (await tel2.ev(() => window.__fpz.getState().deviceId)));
 
 // 1a. aplikacja dla zwiedzających (/app – ta sama paczka co w APK): bez kodu i danych zaplecza

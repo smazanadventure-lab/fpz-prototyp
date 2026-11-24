@@ -198,7 +198,7 @@ strings({
   'g.m.qrCode': ['Właściwy kod w kadrze: {code} (panel „Otoczenie telefonu”).', 'Expected code in view: {code} (“Phone surroundings” panel).'],
   'g.m.scan': ['Zeskanuj kod', 'Scan the code'],
   'g.m.scanOpen': ['Otwórz skaner', 'Open scanner'],
-  'g.m.qrHint': ['Nakieruj aparat na kod QR przy punkcie. W wersji testowej wybierz w panelu „Otoczenie telefonu” kod {code} jako „kod w kadrze”.', 'Point the camera at the QR code at the spot. In the test version choose code {code} as “code in view” in the “Phone surroundings” panel.'],
+  'g.m.qrHint': ['Nakieruj aparat na kod QR przy punkcie – użyj przycisku „Otwórz skaner” i zeskanuj kod {code}. W symulatorze wybierz ten kod jako „kod w kadrze” (panel „Otoczenie telefonu” albo tryb testowy).', 'Point the camera at the QR code at the spot – use “Open scanner” and scan code {code}. In the simulator choose this code as “code in view” (the “Phone surroundings” panel or test mode).'],
   'g.m.qrSeen': ['Kod {code} jest w kadrze – możesz zaliczyć misję.', 'Code {code} is in view – you can complete the mission.'],
   'g.m.qrWrong': ['W kadrze jest inny kod ({code}).', 'A different code is in view ({code}).'],
   'g.m.ble': ['Szukam nadajnika…', 'Looking for the beacon…'],

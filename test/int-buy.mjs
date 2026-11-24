@@ -1,6 +1,8 @@
 // Integracja: pełny zakup biletu w aplikacji (interfejs) → walidacja → status w aplikacji i na stronie.
 import { boot, phone } from './mobile-lib.mjs';
 export default async (page, { shot, tab, errors }) => {
+  // niezależnie od pory dnia: kioski i ekrany wyłączają się nocą wg harmonogramu – test działa w „południe”
+  await page.evaluate(() => window.__fpz?.makeApi('sim').env.set({ simTime: '12:00' }));
   const T = (name, ok) => console.log(ok ? '✓' : '✗ NIEPOWODZENIE:', name);
   const M = page.locator('[data-endpoint="mobile"] .sh-phone__screen'); const snap = (n) => phone(page).screenshot({ path: `shots/${n}.png` });
   await tab('mobile'); await boot(page);

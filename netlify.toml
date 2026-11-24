@@ -41,6 +41,10 @@
   to = "/index.html"
   status = 200
 [[redirects]]
+  from = "/kody/*"
+  to = "/index.html"
+  status = 200
+[[redirects]]
   from = "/q/*"
   to = "/app/index.html"
   status = 200

@@ -21,6 +21,7 @@ Projekt Netlify: **fpz-prototyp** → `https://fpz-prototyp.netlify.app`
 | `/bileter` | stanowisko bileterskie | telefon lub tablet biletera |
 | `/cms` | panel CMS | komputer |
 | `/ekspozycja` | zarządzanie ekspozycją | komputer |
+| `/kody` | **kody QR do testów** – arkusz kodów miejsc, misji gry i kodów „z kiosków” do skanowania telefonem z ekranu albo po wydrukowaniu | komputer / wydruk |
 | `/api/info` | stan backendu (liczba wpisów, zamówień, graczy) | — |
 
 Aplikacja dla zwiedzających (`/app` i APK) jest osobną kompilacją: **nie zawiera** CMS, zarządzania ekspozycją, stanowiska bileterskiego, kiosków ani ekranów, a serwer nie wysyła jej danych zaplecza (konta personelu, urządzenia, harmonogramy, dziennik zdarzeń, statystyki, postępy innych graczy) i odrzuca jej próby wykonania operacji zaplecza.
@@ -52,6 +53,8 @@ Po wdrożeniu sprawdź `https://<adres>/api/info` – powinien zwrócić `{"ok":
 **Od razu, bez instalacji:** otwórz na telefonie `https://fpz-prototyp.netlify.app/app` (kod QR do tego adresu jest w symulatorze pod przyciskiem „Adresy”). W Chrome / Safari wybierz „Dodaj do ekranu głównego” – aplikacja uruchamia się wtedy na pełnym ekranie, także bez sieci (iPhone również).
 
 **APK (Android):** plik buduje GitHub Actions z projektu `android/` – opis w [`docs/APK.md`](APK.md). Gotowy plik `fpz-prototyp-debug.apk` jest w zakładce **Releases** repozytorium – pobierz go na telefon i zainstaluj. Nową wersję można zbudować ręcznie: **Actions → APK (Android) → Run workflow**.
+
+**Kody QR:** strona `/kody` pokazuje wszystkie kody testowe (klik w kod = powiększenie do skanowania z ekranu, przycisk „Drukuj” = arkusz A4). Kody miejsc i misji zawierają adres `https://fpz-prototyp.netlify.app/q/KOD`: zeskanowane w aplikacji (Skanuj → Kamera) otwierają miejsce albo zaliczają krok misji, a zeskanowane zwykłym aparatem telefonu otwierają aplikację w przeglądarce. Kod misji odczytany aparatem (lub wpisany ręcznie) jest pamiętany przez 3 minuty – w tym czasie misję można zaliczyć w grze.
 
 Aplikacja ma w paczce treści startowe, a aktualne dane pobiera z serwera; zmiany wykonane bez sieci (np. postęp gry) czekają w kolejce i wysyłają się po odzyskaniu połączenia. Skaner używa aparatu telefonu (kody z kiosków, biletów i tablic), a pozycję można brać z GPS albo – do testów poza Fabryką – ustawić w **trybie testowym** (plakietka „TEST” na ekranie głównym).
 

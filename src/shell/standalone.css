@@ -19,3 +19,4 @@ html.sa-html body { background: #0B120E; -webkit-tap-highlight-color: transparen
 .sa-net__pill.is-warn { background: #7A4B00; border-radius: 14px; }
 .sa-net__pill button { all: unset; cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 6px; }
 .sa-net__dot { position: fixed; right: 10px; bottom: 10px; width: 10px; height: 10px; border-radius: 50%; background: #E0A100; opacity: .8; }
+.sa-power { position: fixed; left: 50%; bottom: 6vh; transform: translateX(-50%); width: min(86vw, 620px); text-align: center; color: #9AA8A0; font-size: clamp(12px, 1.6vmin, 16px); line-height: 1.5; z-index: 3000; }

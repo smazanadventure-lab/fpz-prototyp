@@ -1,6 +1,8 @@
 // Integracja: zależności między końcówkami w pełnej kompilacji.
 import { boot, phone } from './mobile-lib.mjs';
 export default async (page, { shot, tab, errors }) => {
+  // niezależnie od pory dnia: kioski i ekrany wyłączają się nocą wg harmonogramu – test działa w „południe”
+  await page.evaluate(() => window.__fpz?.makeApi('sim').env.set({ simTime: '12:00' }));
   const T = (name, ok, extra) => console.log(ok ? '✓' : '✗ NIEPOWODZENIE:', name, ok ? '' : (extra ?? ''));
   const ev = (fn, arg) => page.evaluate(fn, arg);
   const paneText = (id) => page.locator(`[data-endpoint="${id}"]`).innerText();
@@ -40,7 +42,7 @@ export default async (page, { shot, tab, errors }) => {
   T('D: awaria → powiadomienia', await ev(() => window.__fpzMgmt.getState().outbox.filter((o) => o.subject.includes('Awaria')).length) >= 1);
   await ev(() => { const { makeApi, getState } = window.__fpzMgmt; const a = makeApi('mgmt'); a.devices.resolveIncident(getState().incidents[0].id, 'ok'); a.devices.setAuto('all'); a.env.set({ simTime: '19:30' }); }); await page.waitForTimeout(700); await shot('int2-kiosk-night');
   T('D: tryb nocny z harmonogramu', await page.locator('[data-endpoint="kiosk"] [data-theme="night"]').count() >= 1);
-  await ev(() => window.__fpzMgmt.makeApi('mgmt').env.set({ simTime: null }));
+  await ev(() => window.__fpzMgmt.makeApi('mgmt').env.set({ simTime: '12:00' })); // wracamy do „południa” (czas rzeczywisty nocą wyłącza ekrany)
 
   // E. transmisja i napisy
   await ev(() => { const a = window.__fpzMgmt.makeApi('mgmt'); a.live.start('Koncert testowy'); a.live.caption('Dobry wieczór, zaczynamy koncert.'); a.live.caption('Napisy na żywo działają.'); });

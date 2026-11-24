@@ -1,4 +1,6 @@
 export default async (page, { shot, tab }) => {
+  // niezależnie od pory dnia: kioski i ekrany wyłączają się nocą wg harmonogramu – test działa w „południe”
+  await page.evaluate(() => window.__fpz?.makeApi('sim').env.set({ simTime: '12:00' }));
   await tab('mgmt'); await page.waitForTimeout(500);
   await page.locator('.sh-toolbtn', { hasText: 'Dwa okna' }).click(); await page.waitForTimeout(400);
   await page.locator('.sh-side__bar button', { hasText: 'Kioski' }).click(); await page.waitForTimeout(1200);

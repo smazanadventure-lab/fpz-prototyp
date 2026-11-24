@@ -10,8 +10,10 @@ import ValidatorApp from '../endpoints/validator/index.jsx';
 import CmsApp from '../endpoints/cms/index.jsx';
 import MgmtApp from '../endpoints/mgmt/index.jsx';
 import { makeApi } from '../kernel/api.js';
+import { useStore } from '../kernel/store.js';
 import { NetNotice } from './net.jsx';
 import { initNative } from './native.js';
+import { QrSheet } from './qrsheet.jsx';
 
 const START = typeof __START__ !== 'undefined' ? __START__ : '';
 const SERVED = typeof __API_BASE__ !== 'undefined' && __API_BASE__ !== null;
@@ -25,6 +27,7 @@ export const ROUTES = [
   { path: 'bileter', id: 'validator', title: 'Stanowisko bileterskie', hint: 'telefon lub tablet biletera' },
   { path: 'cms', id: 'cms', title: 'Panel CMS', hint: 'redakcja treści, oferta, gra, moderacja' },
   { path: 'ekspozycja', id: 'mgmt', title: 'Zarządzanie ekspozycją', hint: 'urządzenia, harmonogramy, awarie' },
+  { path: 'kody', id: 'qr', title: 'Kody QR do testów', hint: 'arkusz kodów do skanowania telefonem z ekranu albo po wydrukowaniu' },
 ];
 /** Adres końcówki: na serwerze własna ścieżka, w wersji jednoplikowej parametr ?end=. */
 export const routeHref = (p) => (SERVED && typeof location !== 'undefined' && /^https?:$/.test(location.protocol) ? `${location.origin}/${p}` : `?end=${encodeURIComponent(p)}`);
@@ -42,11 +45,19 @@ export function parseRoute() {
     case 'bileter': return { id: 'validator' };
     case 'cms': return { id: 'cms' };
     case 'ekspozycja': return { id: 'mgmt' };
+    case 'kody': return { id: 'qr' };
     default: return null;
   }
 }
-const TITLES = { mobile: 'FPŻ – aplikacja', web: 'Fabryka Pełna Życia', kiosk: 'FPŻ – kiosk', signage: 'FPŻ – ekran', validator: 'FPŻ – bileter', cms: 'FPŻ – CMS', mgmt: 'FPŻ – ekspozycja' };
+const TITLES = { qr: 'FPŻ – kody QR do testów', mobile: 'FPŻ – aplikacja', web: 'Fabryka Pełna Życia', kiosk: 'FPŻ – kiosk', signage: 'FPŻ – ekran', validator: 'FPŻ – bileter', cms: 'FPŻ – CMS', mgmt: 'FPŻ – ekspozycja' };
 const vpOf = (w) => (w >= 1080 ? 'desktop' : w >= 700 ? 'tablet' : 'phone');
+
+/** Wyłączony ekran kiosku / LCD jest czarny – w wersji testowej podpowiadamy dlaczego (np. harmonogram nocny) i gdzie to zmienić. */
+function PowerNotice({ deviceId }) {
+  const s = useStore(); const d = s.devices.find((x) => x.id === deviceId); if (!d || d.power !== 'off') return null;
+  const sch = d.schedule === 'auto' ? s.schedules.find((x) => x.active && x.kind === 'power' && (x.targets.includes('all') || x.targets.includes(d.id) || x.targets.includes(d.zone))) : null;
+  return (<div class="sa-power" role="status">{sch ? `Ekran wyłączony zgodnie z harmonogramem (pracuje w godz. ${sch.from}–${sch.to}).` : 'Ekran wyłączony.'} Aby go włączyć, otwórz panel „Zarządzanie ekspozycją” (/ekspozycja): włącz urządzenie albo ustaw godzinę symulowaną na pulpicie.</div>);
+}
 
 export function Standalone({ route }) {
   const [vp, setVp] = useState(() => vpOf(window.innerWidth));
@@ -65,6 +76,8 @@ export function Standalone({ route }) {
     {id === 'validator' && <div class="sa-fill"><ValidatorApp standalone /></div>}
     {id === 'cms' && <div class="sa-fill"><CmsApp standalone /></div>}
     {id === 'mgmt' && <div class="sa-fill"><MgmtApp standalone /></div>}
+    {id === 'qr' && <div class="sa-fill"><QrSheet /></div>}
+    {(id === 'kiosk' || id === 'signage') && <PowerNotice deviceId={route.device} />}
     <NetNotice quiet={id === 'kiosk' || id === 'signage'} />
   </div>);
 }

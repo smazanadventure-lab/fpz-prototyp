@@ -27,6 +27,13 @@ export function ensureClient(s, id, defaults) {
 }
 const inWindow = (hhmm, from, to) => (from <= to ? hhmm >= from && hhmm < to : hhmm >= from || hhmm < to);
 
+/** Adres w kodach QR: na serwerze – adres wdrożenia (zeskanowany zwykłym aparatem otwiera aplikację pod /q/KOD),
+ *  w aplikacji APK – adres serwera, w wersji jednoplikowej – adres przykładowy. Skaner w aplikacji rozumie każdy z nich. */
+const QR_BASE = (() => {
+  try { const b = typeof __API_BASE__ !== 'undefined' ? __API_BASE__ : null; if (b) return b; if (b === '' && typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) return location.origin; } catch { /* poniżej adres przykładowy */ }
+  return 'https://app.fpz.example';
+})();
+
 /* ───────────────────────────── ODCZYTY ───────────────────────────── */
 export const sel = {
   // treści
@@ -77,7 +84,7 @@ export const sel = {
   trigger: (id) => byId(getState().triggers, id),
   triggerByCode: (c) => getState().triggers.find((t) => t.code.toLowerCase() === String(c || '').trim().toLowerCase()) || null,
   triggersFor: (type, id) => getState().triggers.filter((t) => t.active !== false && t.target?.type === type && t.target.id === id),
-  qrPayload: (t) => `https://app.fpz.example/q/${t.code}`,
+  qrPayload: (t) => `${QR_BASE}/q/${t.code}`,
   /** Beacony BLE w otoczeniu symulowanej pozycji: [{ trigger, poi, distanceM, inRange }] posortowane wg odległości. */
   nearbyBeacons(maxM = 400) {
     const s = getState(); const pos = s.env.position;
