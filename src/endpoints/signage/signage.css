@@ -1,0 +1,129 @@
+/* Ekrany LCD – obraz projektowy 1920×1080 (px ekranu). */
+.ep-signage.s-scene { display: grid; grid-template-columns: 300px 1fr; height: 100%; min-height: 0; background: #DADDD4; container-type: inline-size; }
+.ep-signage.s-scene .s-list { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); overflow-y: auto; background: var(--c-surface); border-right: 1px solid var(--c-line); }
+.ep-signage.s-scene .s-list > * { flex: none; }
+.ep-signage.s-scene .s-list h2 { font-size: var(--fs-lg); }
+.ep-signage.s-scene .s-hint { font-size: var(--fs-xs); color: var(--c-text-3); line-height: 1.4; }
+.ep-signage.s-scene .s-list ul { display: flex; flex-direction: column; gap: var(--sp-2); }
+.ep-signage.s-scene .s-it { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: var(--sp-3); border-radius: var(--r-md); background: var(--c-surface-2); border: 2px solid transparent; }
+.ep-signage.s-scene .s-it.is-active { border-color: var(--c-accent); background: var(--c-surface); box-shadow: var(--shadow-1); }
+.ep-signage.s-scene .s-it b { font-size: var(--fs-sm); line-height: 1.2; }
+.ep-signage.s-scene .s-it small { font-size: var(--fs-2xs); color: var(--c-text-3); line-height: 1.35; }
+.ep-signage.s-scene .s-it__id { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .06em; color: var(--c-accent); }
+.ep-signage.s-scene .s-it__tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.ep-signage.s-scene .s-stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: var(--sp-4); gap: var(--sp-3); }
+.ep-signage.s-scene .s-stage__box { flex: 1; min-height: 0; }
+.ep-signage.s-scene .s-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-4); padding: var(--sp-2) var(--sp-4); border-radius: var(--r-md); background: #2B2E30; color: #E8EEEA; font-size: var(--fs-xs); }
+.ep-signage.s-scene .s-status > span { display: inline-flex; align-items: center; gap: 6px; }
+.ep-signage.s-scene .s-status__bar { width: 120px; height: 6px; border-radius: 3px; background: #4a4e50; overflow: hidden; }
+.ep-signage.s-scene .s-status__bar i { display: block; height: 100%; background: var(--c-green); }
+@container (max-width: 760px) { .ep-signage.s-scene { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } .ep-signage.s-scene .s-list { max-height: 35%; } }
+
+/* Obudowa monitora / projekcja */
+.ep-signage .s-mon { position: relative; width: 2040px; height: 1380px; display: flex; flex-direction: column; align-items: center; font-family: var(--font); }
+.ep-signage .s-mon__panel { position: relative; box-sizing: content-box; border: 44px solid #141617; border-bottom-width: 64px; border-radius: 18px; background: #000; box-shadow: 0 30px 60px rgba(0, 0, 0, .3); overflow: hidden; }
+.ep-signage .s-mon__logo { position: relative; margin-top: -50px; color: #6d7377; font-size: 26px; letter-spacing: .2em; }
+.ep-signage .s-mon__neck { width: 140px; height: 120px; margin-top: 14px; background: linear-gradient(90deg, #2b2e30, #45494c, #2b2e30); }
+.ep-signage .s-mon__foot { width: 620px; height: 26px; border-radius: 14px 14px 4px 4px; background: #2b2e30; }
+.ep-signage .s-mon--proj { height: 1220px; }
+.ep-signage .s-mon--proj .s-mon__panel { border: 10px solid #f3f4f2; border-radius: 4px; box-shadow: 0 0 0 4px #9aa0a3, 0 30px 60px rgba(0, 0, 0, .25); }
+.ep-signage .s-proj { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding: 10px 26px; border-radius: 12px; background: #2b2e30; color: #cfd5d2; font-size: 26px; }
+
+/* Ekran */
+.ep-signage.fpz-client { background: #000; }
+.ep-signage .s-screen { position: absolute; inset: 0; overflow: hidden; background: var(--c-bg); color: var(--c-text); }
+.ep-signage .s-off { background: #000; }
+.ep-signage .s-slot { position: absolute; inset: 0; }
+.ep-signage .s-screen.has-ticker .s-slot { bottom: 96px; }
+.ep-signage .s-slide { position: absolute; inset: 0; animation: s-in .6s ease both; }
+@keyframes s-in { from { opacity: 0; transform: scale(1.015); } }
+.ep-signage .s-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; background: var(--c-deep); color: #fff; font-size: var(--fs-lg); --u: 4px; }
+.ep-signage .s-dim { position: absolute; inset: 0; background: #000; pointer-events: none; z-index: 20; transition: opacity .4s; }
+.ep-signage .s-prog { position: absolute; left: 0; right: 0; top: 0; height: 6px; z-index: 6; }
+.ep-signage .s-prog i { display: block; height: 100%; background: var(--c-green); transition: width .25s linear; }
+.ep-signage .s-corner { position: absolute; right: 40px; top: 34px; display: flex; align-items: center; gap: 18px; padding: 10px 22px; border-radius: 999px; background: var(--c-deep); color: #fff; font-size: var(--fs-lg); z-index: 5; }
+.ep-signage[data-contrast="high"] .s-corner { background: #000; box-shadow: 0 0 0 3px #FFE600; }
+.ep-signage .s-pad { position: absolute; inset: 0; padding: 50px 80px 40px; display: flex; flex-direction: column; }
+.ep-signage .s-head { display: flex; align-items: baseline; gap: 24px; padding-bottom: 22px; margin-bottom: 32px; border-bottom: 4px solid var(--c-green); }
+.ep-signage .s-head > svg { color: var(--c-accent); align-self: center; }
+.ep-signage .s-head h1 { font-size: var(--fs-3xl); }
+.ep-signage .s-head span { font-size: var(--fs-lg); color: var(--c-text-3); }
+.ep-signage .s-meta { display: flex; align-items: center; gap: 10px; font-size: var(--fs-md); font-weight: 700; color: var(--c-text-2); }
+.ep-signage .s-en { color: var(--c-text-3); font-size: var(--fs-md); }
+.ep-signage .s-events__grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.15fr 1fr; gap: 50px; }
+.ep-signage .s-feat { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr; gap: 24px 30px; }
+.ep-signage .s-feat > .fpz-media { grid-column: 1 / -1; }
+.ep-signage .s-feat__txt { display: flex; flex-direction: column; gap: 10px; }
+.ep-signage .s-feat__txt h2 { font-size: var(--fs-xl); }
+.ep-signage .s-feat__qr { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: var(--fs-xs); font-weight: 700; text-align: center; }
+.ep-signage .s-feat__qr .fpz-qr { padding: 10px; background: #fff; border-radius: 12px; }
+.ep-signage .s-evl { display: flex; flex-direction: column; gap: 20px; }
+.ep-signage .s-evl li { display: grid; grid-template-columns: 130px 1fr; gap: 26px; align-items: center; padding: 18px; border-radius: 30px 30px 8px 30px; background: var(--c-surface-2); }
+.ep-signage .s-evl li > span:last-child { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-lg); line-height: 1.2; }
+.ep-signage .s-evl small { font-size: var(--fs-sm); color: var(--c-text-2); display: flex; gap: 8px; align-items: center; }
+.ep-signage .s-date { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 120px; border-radius: 22px 22px 6px 22px; background: var(--c-accent); color: var(--c-accent-text); font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; line-height: 1; }
+.ep-signage .s-date b { font-size: var(--fs-2xl); }
+.ep-signage .s-news { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+.ep-signage .s-ncard { display: flex; flex-direction: column; gap: 14px; }
+.ep-signage .s-ncard h2 { font-size: var(--fs-xl); }
+.ep-signage .s-video { position: absolute; inset: 0; background: #000; }
+.ep-signage .s-video .s-vsim, .ep-signage .s-video .fpz-video { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto !important; border-radius: 0 !important; font-size: var(--fs-lg); }
+.ep-signage .s-video .fpz-video button, .ep-signage .s-video .fpz-video input[type="range"] { display: none; }
+.ep-signage .s-video__t { position: absolute; left: 60px; top: 46px; display: flex; flex-direction: column; padding: 16px 30px; border-radius: 30px 30px 8px 30px; background: rgba(0, 0, 0, .62); color: #fff; font-size: var(--fs-xl); z-index: 4; }
+.ep-signage .s-video__t span { font-size: var(--fs-md); opacity: .8; }
+.ep-signage .s-image { position: absolute; inset: 0; }
+.ep-signage .s-image .fpz-media { position: absolute; inset: 0; height: 100%; }
+.ep-signage .s-image__t { position: absolute; left: 80px; bottom: 70px; max-width: 1100px; padding: 36px 50px; border-radius: 50px 50px 10px 50px; background: var(--c-deep); color: #fff; }
+.ep-signage .s-image__t h1 { font-size: var(--fs-3xl); }
+.ep-signage .s-image__t p { font-size: var(--fs-lg); margin-top: 10px; }
+.ep-signage .s-rss { display: flex; flex-direction: column; gap: 18px; counter-reset: r; }
+.ep-signage .s-rss li { display: grid; grid-template-columns: 180px 1fr; gap: 30px; align-items: baseline; padding-bottom: 18px; border-bottom: 2px solid var(--c-line); font-size: var(--fs-xl); }
+.ep-signage .s-rss li span { font-size: var(--fs-md); color: var(--c-accent); font-weight: 700; }
+.ep-signage .s-src { margin-top: auto; display: flex; gap: 10px; align-items: center; font-size: var(--fs-sm); color: var(--c-text-3); }
+.ep-signage .s-clock { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: var(--c-deep); color: #fff; }
+.ep-signage .s-clock b { font-size: 260px; line-height: 1; font-variant-numeric: tabular-nums; }
+.ep-signage .s-clock span { font-size: var(--fs-2xl); text-transform: capitalize; }
+.ep-signage .s-clock > svg { color: var(--c-green); }
+
+/* Napisy na żywo – zawsze bardzo wysoki kontrast */
+.ep-signage .s-caps { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 50px 90px 50px; background: #000; color: #fff; }
+.ep-signage .s-caps__head { display: flex; align-items: center; gap: 30px; padding-bottom: 24px; border-bottom: 3px solid #333; }
+.ep-signage .s-caps__head h1 { font-size: var(--fs-2xl); flex: 1; }
+.ep-signage .s-caps__head .fpz-tag { font-size: var(--fs-md); padding: 8px 20px; }
+.ep-signage .s-caps__note { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); color: #bbb; }
+.ep-signage .s-caps__lines.fpz-captions { flex: 1; justify-content: flex-end; gap: 24px; padding: 20px 0 0; background: transparent; border-radius: 0; font-size: 76px; line-height: 1.2; }
+.ep-signage .s-caps__lines.fpz-captions p { opacity: .55; }
+.ep-signage .s-caps__lines.fpz-captions p:last-child { opacity: 1; color: #FFE600; }
+.ep-signage .s-caps--wait { align-items: center; justify-content: center; gap: 26px; text-align: center; background: #0d1f16; }
+.ep-signage .s-caps--wait > svg { color: var(--c-green); }
+.ep-signage .s-caps--wait h1 { font-size: var(--fs-3xl); }
+.ep-signage .s-caps--wait h1 span { color: #9DB0A6; font-weight: 400; }
+.ep-signage .s-caps--wait p { font-size: var(--fs-xl); max-width: 1500px; }
+.ep-signage .s-caps--wait .s-en { color: #9DB0A6; }
+.ep-signage .s-caps__next { display: flex; align-items: center; gap: 14px; margin-top: 30px; padding: 20px 36px; border-radius: 999px; background: #18301f; font-size: var(--fs-lg) !important; }
+
+/* Pasek informacyjny */
+.ep-signage .s-ticker { position: absolute; left: 0; right: 0; bottom: 0; height: 96px; display: flex; align-items: stretch; background: var(--c-deep); color: #fff; z-index: 8; font-size: var(--fs-xl); }
+.ep-signage[data-contrast="high"] .s-ticker { background: #000; border-top: 3px solid #FFE600; }
+.ep-signage .s-ticker__lbl { flex: none; display: flex; align-items: center; gap: 12px; padding: 0 36px; background: var(--c-green); color: #0B120E; font-weight: 700; letter-spacing: .08em; }
+.ep-signage .s-ticker__track { flex: 1; overflow: hidden; display: flex; align-items: center; }
+.ep-signage .s-ticker__move { display: flex; white-space: nowrap; animation: s-marq linear infinite; }
+.ep-signage .s-ticker__move span { padding-right: 120px; }
+@keyframes s-marq { to { transform: translateX(-50%); } }
+.ep-signage .s-plate { display: flex; flex-direction: column; }
+.ep-signage .s-plate__band { height: 360px; flex: none; }
+.ep-signage .s-plate__box { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; text-align: center; }
+.ep-signage .s-plate__box > svg { color: var(--c-warn); }
+.ep-signage .s-plate__box h1 { font-size: var(--fs-3xl); }
+.ep-signage .s-plate__box p { font-size: var(--fs-xl); color: var(--c-text-3); }
+@media (prefers-reduced-motion: reduce) { .ep-signage .s-ticker__move { animation-duration: 120s !important; } }
+
+/* Tryb samodzielny (/lcd/<id>) */
+.ep-signage.s-sa { position: relative; width: 100%; height: 100%; background: #000; overflow: hidden; }
+.ep-signage.s-sa > .fpz-scalebox { position: absolute; inset: 0; }
+.ep-signage .s-sa__panel { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+.ep-signage.s-sa--err { display: grid; place-items: center; background: var(--c-surface-2); }
+.ep-signage .s-sa__box { max-width: 560px; padding: var(--sp-6); border-radius: var(--r-card); background: var(--c-surface); box-shadow: var(--shadow-2); display: flex; flex-direction: column; gap: var(--sp-3); }
+.ep-signage .s-sa__box > svg { color: var(--c-danger); }
+.ep-signage .s-sa__box h1 { font-size: var(--fs-xl); }
+.ep-signage .s-sa__box ul { display: flex; flex-direction: column; gap: var(--sp-2); }

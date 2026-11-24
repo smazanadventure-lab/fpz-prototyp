@@ -1,0 +1,13 @@
+{
+  "appId": "pl.fpz.prototyp",
+  "appName": "FPŻ – prototyp",
+  "webDir": "dist/apk",
+  "backgroundColor": "#125930",
+  "android": {
+    "backgroundColor": "#125930",
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

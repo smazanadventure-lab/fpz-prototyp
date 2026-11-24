@@ -1,0 +1,53 @@
+/* System wizualny FPŻ – tokeny wg próbek B (kiosk) i C (aplikacja mobilna).
+   Kolory: zieleń identyfikacji #5FB287, ciemna zieleń #125930, neutralna zieleń #45574D, miętowy #CCE5D8, jasny miętowy #EEF6F2.
+   Każda końcówka ma korzeń .fpz-theme (komponent <Client>) z --fs-base (px) i --fpz-fs (skala tekstu użytkownika). */
+.fpz-theme {
+  --c-green: #5FB287; --c-deep: #125930; --c-neutral: #45574D; --c-mint: #CCE5D8; --c-mint-light: #EEF6F2;
+  --c-bg: #FFFFFF; --c-surface: #FFFFFF; --c-surface-2: #EEF6F2; --c-surface-3: #CCE5D8;
+  --c-text: #101411; --c-text-2: #45574D; --c-text-3: #5F6F66; --c-line: #D3DCD6; --c-line-strong: #45574D;
+  --c-accent: #125930; --c-accent-text: #FFFFFF; --c-accent-soft: #CCE5D8; --c-accent-soft-text: #125930;
+  --c-band: #5FB287; --c-band-line: #FFFFFF; --c-band-text: #0B120E;
+  --c-danger: #B3261E; --c-danger-bg: #FBE9E7; --c-warn: #7A4F00; --c-warn-bg: #FFF1CC; --c-info: #1B5A86; --c-info-bg: #E2EFF9; --c-ok: #125930; --c-ok-bg: #DDF0E5;
+  --shadow-1: 0 1px 2px rgba(16, 48, 31, .10), 0 3px 8px rgba(16, 48, 31, .10);
+  --shadow-2: 0 2px 4px rgba(16, 48, 31, .10), 0 10px 26px rgba(16, 48, 31, .16);
+  --font: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", "Nimbus Sans", sans-serif;
+  /* jednostka układu: 1u = 1px przy bazie 16px (kiosk ma większą bazę, więc wszystko rośnie proporcjonalnie) */
+  --u: calc(var(--fs-base, 16px) / 16);
+  --fs: calc(var(--fs-base, 16px) * var(--fpz-fs, 1));
+  --fs-2xs: calc(var(--fs) * .6875); --fs-xs: calc(var(--fs) * .75); --fs-sm: calc(var(--fs) * .875); --fs-md: var(--fs);
+  --fs-lg: calc(var(--fs) * 1.125); --fs-xl: calc(var(--fs) * 1.375); --fs-2xl: calc(var(--fs) * 1.75); --fs-3xl: calc(var(--fs) * 2.25); --fs-4xl: calc(var(--fs) * 3);
+  --sp-1: calc(var(--u) * 4); --sp-2: calc(var(--u) * 8); --sp-3: calc(var(--u) * 12); --sp-4: calc(var(--u) * 16); --sp-5: calc(var(--u) * 24); --sp-6: calc(var(--u) * 32); --sp-7: calc(var(--u) * 48);
+  --r-sm: calc(var(--u) * 8); --r-md: calc(var(--u) * 14); --r-lg: calc(var(--u) * 26); --r-pill: 999px;
+  --r-card: var(--r-lg) var(--r-lg) calc(var(--u) * 5) var(--r-lg); /* charakterystyczny „ścięty” prawy dolny narożnik */
+  font-family: var(--font); font-size: var(--fs-md); line-height: 1.5; color: var(--c-text); background: var(--c-bg);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+.fpz-theme[data-theme="night"] {
+  --c-bg: #131B1E; --c-surface: #1D282C; --c-surface-2: #233136; --c-surface-3: #2B463C;
+  --c-text: #F1F5F3; --c-text-2: #C4D1CA; --c-text-3: #9DB0A6; --c-line: #34454A; --c-line-strong: #C4D1CA;
+  --c-accent: #5FB287; --c-accent-text: #08130D; --c-accent-soft: #2B463C; --c-accent-soft-text: #CCE5D8;
+  --c-band: #16221E; --c-band-line: rgba(95, 178, 135, .7); --c-band-text: #F1F5F3;
+  --c-danger: #FF8A80; --c-danger-bg: #3A1F1D; --c-warn: #FFD166; --c-warn-bg: #3A3016; --c-info: #8CC8F2; --c-info-bg: #18303F; --c-ok: #8FD6AE; --c-ok-bg: #1D3A2B;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .5), 0 3px 8px rgba(0, 0, 0, .35); --shadow-2: 0 10px 26px rgba(0, 0, 0, .55);
+}
+.fpz-theme[data-contrast="high"] {
+  --c-bg: #000; --c-surface: #000; --c-surface-2: #000; --c-surface-3: #000;
+  --c-text: #FFF; --c-text-2: #FFF; --c-text-3: #FFF; --c-line: #FFF; --c-line-strong: #FFF;
+  --c-accent: #FFE600; --c-accent-text: #000; --c-accent-soft: #000; --c-accent-soft-text: #FFE600;
+  --c-band: #000; --c-band-line: #FFE600; --c-band-text: #FFF;
+  --c-danger: #FF9B93; --c-danger-bg: #000; --c-warn: #FFE600; --c-warn-bg: #000; --c-info: #9FD6FF; --c-info-bg: #000; --c-ok: #9BFFC4; --c-ok-bg: #000;
+  --shadow-1: 0 0 0 calc(var(--u) * 2) #FFF; --shadow-2: 0 0 0 calc(var(--u) * 2) #FFF;
+}
+.fpz-theme, .fpz-theme *, .fpz-theme *::before, .fpz-theme *::after { box-sizing: border-box; }
+/* Resety mają zerową specyficzność (:where), aby klasy komponentów i modułów zawsze je nadpisywały. */
+:where(.fpz-theme) :where(h1, h2, h3, h4, p, ul, ol, figure) { margin: 0; padding: 0; }
+:where(.fpz-theme) :where(h1, h2, h3, h4) { font-weight: 700; line-height: 1.15; letter-spacing: -.005em; }
+:where(.fpz-theme) :where(ul, ol) { list-style: none; }
+:where(.fpz-theme) :where(button, input, select, textarea) { font: inherit; color: inherit; }
+:where(.fpz-theme) :where(button) { cursor: pointer; background: none; border: 0; padding: 0; text-align: inherit; }
+:where(.fpz-theme) :where(a) { color: var(--c-accent); }
+.fpz-theme :focus-visible { outline: calc(var(--u) * 3) solid var(--c-accent); outline-offset: calc(var(--u) * 2); }
+.fpz-theme[data-contrast="high"] :focus-visible { outline-color: #FFE600; }
+.fpz-theme ::selection { background: var(--c-accent-soft); }
+.fpz-client { position: relative; height: 100%; width: 100%; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .fpz-theme *, .fpz-theme *::before, .fpz-theme *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }

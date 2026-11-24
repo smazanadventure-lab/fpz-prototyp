@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FPŻ – prototyp</string>
+    <string name="title_activity_main">FPŻ – prototyp</string>
+    <string name="package_name">pl.fpz.prototyp</string>
+    <string name="custom_url_scheme">pl.fpz.prototyp</string>
+</resources>

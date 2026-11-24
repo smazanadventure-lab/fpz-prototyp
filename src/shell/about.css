@@ -1,0 +1,53 @@
+.ep-about { background: var(--c-surface-2); container-type: inline-size; }
+.ep-about .ab-scroll { height: 100%; overflow-y: auto; }
+.ep-about .ab-wrap { max-width: calc(var(--u) * 1180); margin: 0 auto; padding: var(--sp-5) var(--sp-5) var(--sp-7); display: flex; flex-direction: column; gap: var(--sp-6); }
+.ep-about section { display: flex; flex-direction: column; gap: var(--sp-4); }
+.ep-about h2 { font-size: var(--fs-2xl); }
+.ep-about h3 { font-size: var(--fs-lg); }
+.ep-about .ab-hero { border-radius: var(--r-card); }
+.ep-about .ab-hero__in { margin: var(--sp-6); padding: var(--sp-5) var(--sp-6); max-width: calc(var(--u) * 760); background: var(--c-surface); border-radius: var(--r-card); display: flex; flex-direction: column; gap: var(--sp-3); align-items: flex-start; box-shadow: var(--shadow-2); }
+.ep-about .ab-hero h1 { font-size: var(--fs-3xl); }
+.ep-about .ab-hero p { font-size: var(--fs-lg); color: var(--c-text-2); }
+.ep-about .ab-grid { display: grid; gap: var(--sp-4); }
+.ep-about .ab-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ep-about .ab-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ep-about .fpz-card__body p { font-size: var(--fs-sm); color: var(--c-text-2); }
+.ep-about .fpz-card__body > .fpz-icon { color: var(--c-accent); }
+.ep-about .ab-accounts { padding: var(--sp-4) var(--sp-5); border-radius: var(--r-md); background: var(--c-surface); box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: var(--sp-2); }
+.ep-about .ab-accounts ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--u) * 4) var(--sp-5); font-size: var(--fs-sm); }
+.ep-about code { font-family: ui-monospace, Menlo, Consolas, monospace; background: var(--c-surface-2); padding: 0 calc(var(--u) * 5); border-radius: calc(var(--u) * 5); font-size: .95em; }
+.ep-about .ab-sc__head { display: flex; align-items: center; gap: var(--sp-3); }
+.ep-about .ab-sc__n { display: grid; place-items: center; flex: none; width: calc(var(--u) * 34); height: calc(var(--u) * 34); border-radius: 50%; background: var(--c-accent); color: var(--c-accent-text); font-weight: 700; }
+.ep-about .ab-steps { list-style: decimal; padding-left: calc(var(--u) * 20); display: flex; flex-direction: column; gap: calc(var(--u) * 6); font-size: var(--fs-sm); color: var(--c-text); }
+.ep-about .ab-sc__tabs { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: auto; }
+.ep-about .ab-lead { font-size: var(--fs-sm); color: var(--c-text-2); line-height: 1.7; max-width: calc(var(--u) * 900); }
+.ep-about .ab-small { font-size: var(--fs-xs); color: var(--c-text-3); }
+.ep-about .ab-matrix { display: flex; flex-direction: column; gap: var(--sp-2); }
+.ep-about .ab-matrix h3 { font-size: var(--fs-md); color: var(--c-accent); margin-top: var(--sp-2); }
+.ep-about .ab-table { border-radius: var(--r-md); overflow: hidden; background: var(--c-surface); box-shadow: var(--shadow-1); }
+.ep-about .ab-row { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr) calc(var(--u) * 120); gap: var(--sp-4); padding: calc(var(--u) * 10) var(--sp-4); font-size: var(--fs-sm); align-items: start; }
+.ep-about .ab-row + .ab-row { border-top: calc(var(--u) * 1.25) solid var(--c-line); }
+.ep-about .ab-row small { display: block; color: var(--c-text-3); font-size: var(--fs-xs); margin-top: calc(var(--u) * 2); }
+.ep-about .ab-row > div:last-child { text-align: right; }
+.ep-about .ab-diagram { display: flex; flex-direction: column; gap: 0; padding: var(--sp-5); border-radius: var(--r-card); background: var(--c-surface); box-shadow: var(--shadow-1); }
+.ep-about .ab-diagram__ends { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--sp-2); }
+.ep-about .ab-node { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 6); padding: var(--sp-3) var(--sp-2); border-radius: var(--r-md); background: var(--c-surface-2); color: var(--c-accent-soft-text); font-size: var(--fs-xs); font-weight: 700; text-align: center; line-height: 1.25; }
+.ep-about .ab-diagram__bus { margin: var(--sp-3) 0; padding: calc(var(--u) * 7) var(--sp-4); border-radius: var(--r-pill); background: var(--c-accent); color: var(--c-accent-text); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .04em; text-align: center; position: relative; }
+.ep-about .ab-diagram__core { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--sp-3); }
+.ep-about .ab-node--core, .ep-about .ab-node--sim { flex-direction: row; align-items: flex-start; text-align: left; gap: var(--sp-3); padding: var(--sp-4); background: var(--c-surface-3); }
+.ep-about .ab-node--sim { background: var(--c-warn-bg); color: var(--c-warn); }
+.ep-about .ab-node b { display: block; font-size: var(--fs-sm); }
+.ep-about .ab-node small { display: block; font-weight: 400; font-size: var(--fs-xs); margin-top: calc(var(--u) * 3); line-height: 1.45; }
+.ep-about .ab-kpis > div { padding: var(--sp-4); border-radius: var(--r-md); background: var(--c-surface); box-shadow: var(--shadow-1); display: flex; flex-direction: column; }
+.ep-about .ab-kpis b { font-size: var(--fs-2xl); line-height: 1.1; color: var(--c-accent); }
+.ep-about .ab-kpis span { font-size: var(--fs-xs); color: var(--c-text-3); font-weight: 700; }
+.ep-about .ab-sources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--u) * 4) var(--sp-5); font-size: var(--fs-sm); list-style: disc; padding-left: calc(var(--u) * 20); }
+@container (max-width: 900px) {
+  .ep-about .ab-grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ep-about .ab-grid--2, .ep-about .ab-accounts ul, .ep-about .ab-sources, .ep-about .ab-diagram__core { grid-template-columns: minmax(0, 1fr); }
+  .ep-about .ab-diagram__ends { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ep-about .ab-row { grid-template-columns: minmax(0, 1fr); gap: calc(var(--u) * 4); }
+  .ep-about .ab-row > div:last-child { text-align: left; }
+  .ep-about .ab-hero__in { margin: var(--sp-4); padding: var(--sp-4); }
+  .ep-about .ab-hero h1 { font-size: var(--fs-2xl); }
+}

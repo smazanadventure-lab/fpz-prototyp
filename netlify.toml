@@ -1,0 +1,57 @@
+# Wdrożenie pilotażowe na Netlify: strona (jeden plik HTML) + funkcja /api/* + dane w Netlify Blobs.
+[build]
+  command = "npm run build:netlify"
+  publish = "dist/site"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Każda końcówka ma własny adres – wszystkie podaje ta sama aplikacja.
+# /app – aplikacja dla zwiedzających (osobna paczka, ta sama co w APK); /q/KOD – adres z kodów QR
+[[redirects]]
+  from = "/app/*"
+  to = "/app/index.html"
+  status = 200
+[[redirects]]
+  from = "/www/*"
+  to = "/index.html"
+  status = 200
+[[redirects]]
+  from = "/kiosk/*"
+  to = "/index.html"
+  status = 200
+[[redirects]]
+  from = "/lcd/*"
+  to = "/index.html"
+  status = 200
+[[redirects]]
+  from = "/bileter/*"
+  to = "/index.html"
+  status = 200
+[[redirects]]
+  from = "/cms/*"
+  to = "/index.html"
+  status = 200
+[[redirects]]
+  from = "/ekspozycja/*"
+  to = "/index.html"
+  status = 200
+[[redirects]]
+  from = "/q/*"
+  to = "/app/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), geolocation=(self)"
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"

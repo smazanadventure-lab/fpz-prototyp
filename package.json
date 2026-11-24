@@ -1,0 +1,34 @@
+{
+  "name": "fpz-prototyp",
+  "version": "0.3.0",
+  "description": "Fabryka Pełna Życia – prototyp systemu multimedialnego (wersja testowa): aplikacja mobilna, WWW, kioski, ekrany, bileter, CMS, zarządzanie ekspozycją + backend pilotażowy.",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:netlify": "node build.mjs --target=netlify",
+    "build:apk": "node build.mjs --target=apk --api=https://fpz-prototyp.netlify.app && npx cap sync android",
+    "serve": "node build.mjs --target=netlify && node tools/dev-server.mjs",
+    "validate": "node tools/validate-content.mjs",
+    "test:kernel": "node tools/api-test.mjs",
+    "test:server": "node test/srv-race.mjs && node test/srv-e2e.mjs"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@capacitor-community/text-to-speech": "^8.0.2",
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.2",
+    "@netlify/blobs": "^11.1.11",
+    "jsqr": "^1.4.0",
+    "preact": "^10.29.8",
+    "qrcode-generator": "^1.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
+    "esbuild": "^0.28.2"
+  },
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}

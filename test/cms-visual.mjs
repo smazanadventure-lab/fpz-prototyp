@@ -1,0 +1,23 @@
+export default async (page, { shot, errors }) => {
+  const wait = (ms = 250) => page.waitForTimeout(ms);
+  const nav = async (l) => { await page.click(`.c-side__it:has-text("${l}")`); await wait(); };
+  const sub = async (l) => { await page.click(`.c-subnav button:has-text("${l}")`); await wait(); };
+  await page.click('.c-login__acc:has-text("Administrator")'); await page.click('[data-testid=c-login-submit]'); await wait();
+  await nav('Miejsca'); await shot('cms-places');
+  await page.click('.c-table tbody tr >> nth=0'); await wait(400);
+  await page.click('[data-testid=poi-citymap] svg', { position: { x: 120, y: 80 } }); await wait();
+  await shot('cms-poi-editor');
+  await page.keyboard.press('Escape'); await wait();
+  await nav('Wyzwalacze'); await page.click('button:has-text("Arkusz do druku")'); await wait(); await shot('cms-print-sheet'); await page.keyboard.press('Escape');
+  await nav('Treści'); await sub('Kategorie'); await shot('cms-categories');
+  await sub('Filmy'); await page.click('.c-table tbody tr >> nth=0'); await wait(); await shot('cms-video'); await page.keyboard.press('Escape');
+  await nav('Gra terenowa'); await sub('Quizy'); await page.click('.c-table tbody tr >> nth=0'); await wait(); await shot('cms-quiz'); await page.keyboard.press('Escape');
+  await sub('Statystyki gry'); await shot('cms-gstats');
+  await nav('Oferta'); await sub('Klienci'); await shot('cms-customers');
+  await nav('Pulpit');
+  await page.click('button[aria-label="Tryb nocny"]'); await wait(); await shot('cms-night');
+  await nav('Treści'); await page.click('.c-table tbody tr >> nth=0'); await wait(); await shot('cms-night-editor');
+  await page.click('button[aria-label="Tryb dzienny"]'); await page.click('button[aria-label="Wysoki kontrast"]'); await wait(); await shot('cms-contrast');
+  await page.click('button[aria-label="Wysoki kontrast"]'); await wait();
+  if (errors.length) throw new Error('błędy konsoli');
+};

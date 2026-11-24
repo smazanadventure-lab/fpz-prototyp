@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.netlify/
+shots/
+
+# Android – katalogi build i pliki lokalne (gradlew i gradle/wrapper/gradle-wrapper.jar MUSZĄ być w repo)
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/build/
+android/local.properties
+android/.idea/
+*.keystore
+*.jks
+
+# dane lokalnego serwera testowego i moduł funkcji generowany przy budowaniu
+.data/
+server/build/

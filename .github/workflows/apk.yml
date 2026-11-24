@@ -1,0 +1,80 @@
+# Buduje aplikację Android (APK, podpis kluczem debug) z projektu Capacitor w android/
+# i publikuje ją jako artefakt oraz zasób wydania GitHub (bezpośredni link do pobrania).
+name: APK (Android)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FPZ_API_BASE: ${{ vars.FPZ_API_BASE || 'https://fpz-prototyp.netlify.app' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Zależności npm
+        run: npm ci
+
+      - name: Build aplikacji web (dist/apk)
+        run: node build.mjs --target=apk --api=${{ env.FPZ_API_BASE }}
+
+      - name: Capacitor sync
+        run: npx cap sync android
+
+      # Capacitor 8 (moduły w JavaVersion.VERSION_21) + AGP 8.13 wymagają JDK 21.
+      - name: JDK 21 (Temurin)
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Gradle – assembleDebug
+        run: |
+          chmod +x android/gradlew
+          cd android && ./gradlew assembleDebug --no-daemon
+
+      - name: Nazwa pliku APK
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/fpz-prototyp-debug.apk
+          ls -l out
+
+      - name: Artefakt
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpz-prototyp-debug-apk
+          path: out/fpz-prototyp-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Wydanie GitHub (prerelease)
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: FPŻ – prototyp, APK nr ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: out/fpz-prototyp-debug.apk
+          body: |
+            Build testowy (podpis kluczem debug) z commita ${{ github.sha }}.
+            Serwer API: ${{ env.FPZ_API_BASE }}
+            Instalacja: pobierz `fpz-prototyp-debug.apk` na telefon i otwórz (zezwól na instalację z nieznanych źródeł).
