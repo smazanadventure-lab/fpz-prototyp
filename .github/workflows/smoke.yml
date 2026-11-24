@@ -1,0 +1,39 @@
+# Test dymny wdrożenia: po każdej zmianie na main sprawdza, czy strony końcówek i API odpowiadają na serwerze.
+name: Test dymny wdrożenia
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      BASE: ${{ vars.FPZ_API_BASE || 'https://fpz-prototyp.netlify.app' }}
+    steps:
+      - name: Czekaj na wdrożenie Netlify
+        if: github.event_name == 'push'
+        run: sleep 80
+
+      - name: Strony końcówek
+        run: |
+          fail=""
+          for p in / /app /www /kiosk/TZ.T1.1 /lcd/LCD-01 /bileter /cms /ekspozycja /kody /q/FPZ-Q-101 /manifest.webmanifest; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -L "$BASE$p")
+            echo "$p -> $code"
+            if [ "$code" != "200" ]; then echo "::error::$p zwraca $code"; fail=1; fi
+          done
+          echo "::notice::Strony: $([ -z "$fail" ] && echo 'wszystkie adresy odpowiadają 200' || echo 'są błędy')"
+          [ -z "$fail" ]
+
+      - name: API
+        run: |
+          body=$(curl -s "$BASE/api/info")
+          echo "::notice::api/info $body"
+          echo "$body" | grep -q '"ok":true'
+          app=$(curl -s "$BASE/api/sync?role=app&device=smoke" | head -c 400000)
+          echo "$app" | grep -q '"entries"' || { echo "::error::brak danych w /api/sync"; exit 1; }
+          if echo "$app" | grep -q '"staff"'; then echo "::error::widok aplikacji zawiera dane zaplecza"; exit 1; fi
+          echo "::notice::Widok aplikacji: dane publiczne są, danych zaplecza brak"
