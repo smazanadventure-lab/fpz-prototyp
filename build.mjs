@@ -129,6 +129,9 @@ if (target === 'netlify') {
   const app = page(await bundle({ entry: 'src/main-app.jsx', appOnly: true, api: '', startAt: 'app' }), APP_TITLE);
   fs.mkdirSync(path.join(site, 'app'), { recursive: true }); fs.writeFileSync(path.join(site, 'app/index.html'), app);
   console.log(`OK dist/site/app/index.html  ${(app.length / 1024).toFixed(0)} kB  (aplikacja dla zwiedzających)`);
+  // Adresy końcówek → jedna z dwóch stron. Plik _redirects trafia do katalogu publikacji (te same reguły są w netlify.toml).
+  const SPA = [['app', '/app/index.html'], ['q', '/app/index.html'], ...['www', 'kiosk', 'lcd', 'bileter', 'cms', 'ekspozycja', 'kody'].map((r) => [r, '/index.html'])];
+  fs.writeFileSync(path.join(site, '_redirects'), SPA.map(([r, to]) => `/${r}/*  ${to}  200`).join('\n') + '\n');
   for (const f of fs.readdirSync(path.join(root, 'public'))) { let buf = fs.readFileSync(path.join(root, 'public', f)); if (f === 'sw.js') buf = Buffer.from(String(buf).replace('__BUILD__', buildId)); fs.writeFileSync(path.join(site, f), buf); }
   await buildServer();
 }
