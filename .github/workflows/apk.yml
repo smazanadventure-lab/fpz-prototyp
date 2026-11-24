@@ -6,6 +6,14 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    # nowy APK tylko wtedy, gdy zmienia się aplikacja (nie przy zmianach dokumentacji, serwera czy testów)
+    paths:
+      - 'src/**'
+      - 'android/**'
+      - 'build.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.json'
 
 permissions:
   contents: write

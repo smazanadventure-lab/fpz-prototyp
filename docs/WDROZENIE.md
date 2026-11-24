@@ -27,32 +27,31 @@ Aplikacja dla zwiedzających (`/app` i APK) jest osobną kompilacją: **nie zawi
 
 Logowanie we wszystkich panelach to **makieta**: login i hasło konta testowego są wpisane, wystarczy „Zaloguj”.
 
-## Krok 1 – wdrożenie na Netlify
+## Stan wdrożenia (24.11.2026)
 
-Projekt `fpz-prototyp` jest już założony na koncie Netlify (pusty). Trzeba wysłać do niego kod i zdecydować o widoczności.
+- **Strona i API:** `https://fpz-prototyp.netlify.app` – wdrożone, widoczność produkcji: publiczna (adresy podglądowe Netlify nadal wymagają logowania do zespołu).
+- **Kod:** `https://github.com/smazanadventure-lab/fpz-prototyp`, gałąź `main`. Po podpięciu repozytorium w Netlify (Project configuration → Build & deploy → *Connect an existing repository*) każda zmiana na `main` wdraża się sama; ustawienia budowania są w `netlify.toml`.
+- **APK:** zakładka *Releases* repozytorium – plik `fpz-prototyp-debug.apk`. GitHub Actions buduje nową wersję, gdy zmieni się kod aplikacji (nie przy zmianach samej dokumentacji), albo na żądanie (*Actions → APK (Android) → Run workflow*).
 
-> **Widoczność projektu – do decyzji.** Nowe projekty Netlify są domyślnie **prywatne**: stronę i API otworzy tylko osoba zalogowana do zespołu Netlify. W takim stanie telefon testera, kiosk i aplikacja APK **nie połączą się z serwerem** (aplikacja pokaże „Brak połączenia z serwerem” i będzie działać na danych z paczki). Żeby pilotaż działał na urządzeniach, ustaw: **Project configuration → General → Visitor access → Project visibility → Edit visibility → Public**. Pamiętaj, że wersja pilotażowa nie ma prawdziwego logowania (zob. „Ograniczenia”) – adres podawaj tylko testerom. Ochrona wspólnym hasłem Netlify nie nadaje się tutaj, bo blokuje także wywołania API z aplikacji.
+## Krok 1 – wdrożenie na Netlify (od zera, np. na innym koncie)
 
-Sposoby wysłania kodu:
+> **Widoczność projektu.** Nowe projekty Netlify są domyślnie **prywatne**: stronę i API otworzy tylko osoba zalogowana do zespołu Netlify, więc telefon testera, kiosk i aplikacja APK **nie połączą się z serwerem** (aplikacja pokaże „Brak połączenia z serwerem” i będzie działać na danych z paczki). Ustaw: **Project configuration → General → Visitor access → Project visibility → Edit visibility → Public**. Wersja pilotażowa nie ma prawdziwego logowania (zob. „Ograniczenia”) – adres podawaj tylko testerom. Ochrona wspólnym hasłem Netlify nie nadaje się tutaj, bo blokuje także wywołania API z aplikacji.
 
-### Wariant A – z komputera, jednym poleceniem (ok. 5 min)
-Wymaga [Node.js LTS](https://nodejs.org) (wersja 20 lub nowsza).
-1. Rozpakuj `FPZ-prototyp-kod-zrodlowy.zip`.
-2. W rozpakowanym katalogu uruchom **`wdrozenie-netlify.cmd`** (Windows, dwuklik) albo `./wdrozenie-netlify.sh` (macOS / Linux).
-   Skrypt wykonuje: `npm ci` → `npx netlify-cli deploy --prod --site 6529ca3f-303b-47dc-88a5-8ea502f3b366`.
-3. Przy pierwszym uruchomieniu otworzy się przeglądarka z prośbą o zalogowanie do Netlify i zgodę dla Netlify CLI – zatwierdź.
-4. Po 1–2 minutach w oknie pojawi się adres strony. Sprawdź `https://fpz-prototyp.netlify.app/api/info` – powinien zwrócić `{"ok":true,…}`.
+### Wariant A – przez GitHub (zalecany)
+1. Wgraj kod do repozytorium na GitHubie (gałąź `main`).
+2. W Netlify: **Add new project → Import an existing project** (albo w istniejącym projekcie *Connect an existing repository*) i wskaż repozytorium. Pola budowania zostaw puste – są w `netlify.toml` (`npm run build:netlify`, katalog `dist/site`).
+3. Każdy `push` do `main` wdraża stronę.
 
-### Wariant B – przez GitHub (wdrożenie po każdej zmianie + automatyczny APK)
-1. Załóż na GitHubie puste repozytorium (może być prywatne) i wgraj do niego zawartość rozpakowanego archiwum (gałąź `main`).
-2. W Netlify: projekt **fpz-prototyp → Project configuration → Build & deploy → Link repository** – wskaż repozytorium. Ustawienia budowania są w `netlify.toml` (nic nie trzeba wpisywać).
-3. Każdy `push` do `main` wdraża stronę, a GitHub Actions buduje APK (krok 2).
+### Wariant B – z komputera, jednym poleceniem
+Wymaga [Node.js LTS](https://nodejs.org) (wersja 20 lub nowsza). W katalogu projektu uruchom **`wdrozenie-netlify.cmd`** (Windows) albo `./wdrozenie-netlify.sh` (macOS / Linux): `npm ci` → `npx netlify-cli deploy --prod --site <identyfikator projektu>`. Przy pierwszym uruchomieniu przeglądarka poprosi o zalogowanie do Netlify. Identyfikator projektu wpisany w skryptach dotyczy projektu `fpz-prototyp`.
+
+Po wdrożeniu sprawdź `https://<adres>/api/info` – powinien zwrócić `{"ok":true,…}`.
 
 ## Krok 2 – aplikacja na telefon
 
 **Od razu, bez instalacji:** otwórz na telefonie `https://fpz-prototyp.netlify.app/app` (kod QR do tego adresu jest w symulatorze pod przyciskiem „Adresy”). W Chrome / Safari wybierz „Dodaj do ekranu głównego” – aplikacja uruchamia się wtedy na pełnym ekranie, także bez sieci (iPhone również).
 
-**APK (Android):** plik buduje GitHub Actions z projektu `android/` – opis w [`docs/APK.md`](APK.md). W skrócie: repozytorium na GitHubie (wariant B wyżej) → zakładka **Actions → APK (Android) → Run workflow** → po kilku minutach plik `fpz-prototyp-debug.apk` jest w zakładce **Releases**. Pobierz go na telefon i zainstaluj.
+**APK (Android):** plik buduje GitHub Actions z projektu `android/` – opis w [`docs/APK.md`](APK.md). Gotowy plik `fpz-prototyp-debug.apk` jest w zakładce **Releases** repozytorium – pobierz go na telefon i zainstaluj. Nową wersję można zbudować ręcznie: **Actions → APK (Android) → Run workflow**.
 
 Aplikacja ma w paczce treści startowe, a aktualne dane pobiera z serwera; zmiany wykonane bez sieci (np. postęp gry) czekają w kolejce i wysyłają się po odzyskaniu połączenia. Skaner używa aparatu telefonu (kody z kiosków, biletów i tablic), a pozycję można brać z GPS albo – do testów poza Fabryką – ustawić w **trybie testowym** (plakietka „TEST” na ekranie głównym).
 
@@ -80,4 +79,4 @@ node test/srv-e2e.mjs    # 9 „urządzeń” w przeglądarce na wspólnym backe
 - **Dane w jednym dokumencie** (ok. 0,4 MB) w Netlify Blobs z zapisem warunkowym. To wystarcza dla kilku–kilkunastu testerów, ale Netlify zaleca dla danych transakcyjnych bazę danych – wersja produkcyjna powinna mieć bazę (np. PostgreSQL), konta z rolami po stronie serwera i API z autoryzacją. Warstwa magazynu jest wydzielona (`server/netlify-fn.mjs`), więc podmiana nie zmienia logiki.
 - **Odświeżanie przez odpytywanie**, nie „na żywo” – opóźnienie do kilku sekund (napisy na żywo na ekranie LCD pojawiają się z takim samym opóźnieniem). Każde odpytanie to wywołanie funkcji Netlify: otwarta karta zużywa ok. 15 wywołań na minutę w czasie aktywnych testów i 2 na minutę w spoczynku – warto zamykać nieużywane karty i obserwować zużycie w panelu Netlify.
 - **Pliki** dodawane w CMS (obrazy) trafiają do wspólnego stanu, stąd limit 300 kB na plik.
-- Wdrożenie na Netlify i budowa APK nie zostały wykonane ani sprawdzone w środowisku, w którym powstał kod (brak dostępu do Netlify i Android SDK) – sprawdzono je lokalnie: serwer testowy z produkcyjnym modułem funkcji i emulatorem Netlify Blobs oraz aplikację mobilną w przeglądarce z kamerą testową.
+- Zakres sprawdzenia: logikę serwera i końcówek przetestowano lokalnie (serwer testowy z produkcyjnym modułem funkcji i emulatorem Netlify Blobs, 9 „urządzeń” w przeglądarce, aplikacja mobilna z kamerą testową). Na Netlify potwierdzono w dzienniku żądań poprawne odpowiedzi API (`/api/sync`, `/api/rpc`). APK zbudował się na GitHubie i ma właściwą zawartość, ale jego działanie na telefonie (aparat, GPS, lektor, marginesy ekranu) wymaga sprawdzenia na urządzeniu.
