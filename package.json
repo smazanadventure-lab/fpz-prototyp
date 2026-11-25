@@ -1,6 +1,6 @@
 {
   "name": "fpz-prototyp",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Fabryka Pełna Życia – prototyp systemu multimedialnego (wersja testowa): aplikacja mobilna, WWW, kioski, ekrany, bileter, CMS, zarządzanie ekspozycją + backend pilotażowy.",
   "scripts": {
     "build": "node build.mjs",

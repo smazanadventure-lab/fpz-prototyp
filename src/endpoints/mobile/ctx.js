@@ -7,7 +7,7 @@ export const AppCtx = createContext(null);
 /** { platform, tab, go(tab), push(name, props), pop(), openEntry, openPoi, showOnMap, openScanner, openCoupons, openReservation, openDrawer, onScroll, audio, playAudio, … } */
 export const useApp = () => useContext(AppCtx);
 
-export const APP_VERSION = '0.5.0'; // ta sama wersja co w package.json i android/app/build.gradle – widać ją w aplikacji (O aplikacji, ekran startowy)
+export const APP_VERSION = '0.5.1'; // ta sama wersja co w package.json i android/app/build.gradle – widać ją w aplikacji (O aplikacji, ekran startowy)
 export const TABS = [
   { id: 'home', icon: 'pin', key: 'm.tab.home' },
   { id: 'history', icon: 'history', key: 'm.tab.history' },
