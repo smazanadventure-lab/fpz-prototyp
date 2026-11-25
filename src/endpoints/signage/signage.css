@@ -69,6 +69,9 @@
 .ep-signage .s-video { position: absolute; inset: 0; background: #000; }
 .ep-signage .s-video .s-vsim, .ep-signage .s-video .fpz-video { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto !important; border-radius: 0 !important; font-size: var(--fs-lg); }
 .ep-signage .s-video .fpz-video button, .ep-signage .s-video .fpz-video input[type="range"] { display: none; }
+/* Prawdziwy film (plik albo obraz z kamery): nic go nie przykrywa – bez przyciemnienia pod przyciski odtwarzacza i bez paska postępu pętli */
+.ep-signage .s-video .md-video--file .md-video__shade { display: none; }
+.ep-signage:has(.s-video video) .s-prog { display: none; }
 .ep-signage .s-video__t { position: absolute; left: 60px; top: 46px; display: flex; flex-direction: column; padding: 16px 30px; border-radius: 30px 30px 8px 30px; background: rgba(0, 0, 0, .62); color: #fff; font-size: var(--fs-xl); z-index: 4; }
 .ep-signage .s-video__t span { font-size: var(--fs-md); opacity: .8; }
 .ep-signage .s-image { position: absolute; inset: 0; }

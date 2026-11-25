@@ -195,13 +195,14 @@ function Slide({ item, now, files }) {
         </div></div>);
     }
     case 'video': {
-      // plik wideo prosto z biblioteki mediów („media:<id>”) albo film z CMS; plik z biblioteki gra z pamięci ekranu (preload.js)
+      // plik wideo prosto z biblioteki mediów („media:<id>”) albo film z CMS; plik z biblioteki gra z pamięci ekranu (preload.js).
+      // Prawdziwy film idzie na ekran czysty – bez plakietki z tytułem; plakietka zostaje przy symulacji i transmisji.
       const f = itemVideoFile(s, item); const st = f && files ? files(f.id) : null;
       if (f && files && (!st || st.state === 'loading')) return <LoadingSlide title={item.title || f.name} progress={st?.progress || 0} />;
       const url = st?.url;
-      if (isMediaRef(item.ref)) { const m = mediaItem(item.ref); return <div class="s-video">{m ? <VideoLoop file={f} url={url} v={{ id: m.id, src: item.ref, title: { pl: item.title || m.name, en: '' }, durationSec: m.durationSec || item.durationSec || 20, kind: 'studio', captions: [] }} /> : null}<div class="s-video__t"><b>{item.title || m?.name}</b></div></div>; }
+      if (isMediaRef(item.ref)) { const m = mediaItem(item.ref); return <div class="s-video">{m ? <VideoLoop file={f} url={url} v={{ id: m.id, src: item.ref, title: { pl: item.title || m.name, en: '' }, durationSec: m.durationSec || item.durationSec || 20, kind: 'studio', captions: [] }} /> : null}{!url && <div class="s-video__t"><b>{item.title || m?.name}</b></div>}</div>; }
       const v = s.videos.find((x) => x.id === item.ref); if (!v) return null; // pozycje bez filmu pomija playback()
-      return <div class="s-video"><VideoLoop v={v} file={f} url={url} /><div class="s-video__t"><b>{v.title.pl}</b><span lang="en">{v.title.en}</span></div></div>;
+      return <div class="s-video"><VideoLoop v={v} file={f} url={url} />{!url && <div class="s-video__t"><b>{v.title.pl}</b><span lang="en">{v.title.en}</span></div>}</div>;
     }
     case 'news': {
       const ns = sel.news().slice(0, 3);
