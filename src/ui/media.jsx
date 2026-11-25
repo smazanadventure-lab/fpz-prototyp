@@ -10,6 +10,7 @@ import { speak, stopSpeaking, estimateSeconds } from './speech.js';
 import { Illustration } from './illustrations.jsx';
 import { Icon, Tag } from './components.jsx';
 import { mediaItem, mediaUrl, cannotDecode, probeMediaInfo, videoWarnings, codecLabel } from '../kernel/media.js';
+import { LiveVideo } from './live.jsx';
 import './media.css';
 
 strings({
@@ -106,9 +107,10 @@ function PjmFigure() {
  * props dodatkowe (opcjonalne): description, kind, ad, loop, muted, chromeless (bez kontrolek – ekrany LCD),
  *   onOpen() (miniatura compact: klik otwiera pełny odtwarzacz zamiast odtwarzać w miejscu), showTitle=true,
  *   ratio='16/9', showAd=false, showPjm=false, startAt (s), onTime(t)
+ * Transmisja z kamery telefonu (s.live.onAir && s.live.streamId, bez compact) → prawdziwy obraz: LiveVideo z ui/live.jsx.
  */
 export function VideoSim(props) {
-  const { t: tr } = useClient(); useStore();
+  const { t: tr, L } = useClient(); const s = useStore();
   const v = props.video || {}; const isLive = props.live != null ? !!props.live : (props.kind || v.kind) === 'live';
   let file = isLive ? null : fileOf('video', props.src, v.src, props.ill, v.ill);
   if (file && props.fileUrl) file = { ...file, url: props.fileUrl }; // ekrany LCD: plik wczytany wcześniej do pamięci (blob:)
@@ -117,6 +119,13 @@ export function VideoSim(props) {
   const undecodable = !!file && cannotDecode(file.item);
   const fail = () => { setFailed(file.url); props.onFileError?.(); };
   useEffect(() => { if (undecodable) props.onFileError?.(); }, [undecodable, file?.url]);
+  // transmisja z kamery telefonu (s.live.streamId) – prawdziwy obraz; miniatury (compact) i transmisja symulowana – jak dotąd
+  if (isLive && !props.compact && s.live.onAir && s.live.streamId) {
+    const simIll = [props.ill, v.ill].find((x) => x && !(mediaItem(x) && mediaItem(x).type !== 'image')) || 'studio';
+    return <LiveVideo key={s.live.streamId} streamId={s.live.streamId} title={asText(props.title, L) || asText(v.title, L) || L(s.live.title)} chromeless={props.chromeless}
+      showTitle={props.showTitle !== false} showCaptions={props.showCaptions !== false} ratio={props.ratio || '16/9'} class={props.class}
+      fallback={<SimVideo {...props} ill={simIll} offAir />} unsupported={<SimVideo {...props} ill={simIll} note={tr('lv.unsupported')} />} />;
+  }
   if (file && !undecodable && failed !== file.url) return <FileVideo key={file.url} {...props} file={file} onFail={fail} />;
   if (file && props.onFileError) return <div class={clsx('md-video md-video--off', props.class)} aria-hidden="true" />; // ekran: bez symulacji w miejscu pliku
   // symulacja: ilustracja zamiast odwołania do pliku wideo (kadr filmu nie wczyta się, skoro plik nie działa)
@@ -145,7 +154,7 @@ function fileOf(kind, ...refs) {
 }
 
 function SimVideo({ video, title, ill, durationSec, captions, live, autoplay, showCaptions = true, onEnded, compact, class: cls,
-  description, kind, ad, loop, muted, chromeless, onOpen, showTitle = true, ratio = '16/9', showAd = false, showPjm = false, startAt = 0, onTime, note }) {
+  description, kind, ad, loop, muted, chromeless, onOpen, showTitle = true, ratio = '16/9', showAd = false, showPjm = false, startAt = 0, onTime, note, offAir: forceOff }) {
   const { t: tr, L } = useClient(); const s = useStore();
   const v = video || {}; const vKind = kind || v.kind; const isLive = live != null ? !!live : vKind === 'live';
   const archive = vKind === 'archive';
@@ -217,7 +226,7 @@ function SimVideo({ video, title, ill, durationSec, captions, live, autoplay, sh
     const lead = scene === 0 ? (archive ? tr('md.ad.archive', { year: v.year ? ` (${v.year})` : '' }) + ' ' : isLive ? tr('md.ad.live') + ' ' : '') : '';
     adText = `${lead}${tr(`md.ad.${scene % 6}`)}: ${(facts[scene % Math.max(1, facts.length)] || '').replace(/[.]$/, '')}.`;
   }
-  const offAir = isLive && !s.live.onAir;
+  const offAir = isLive && (!s.live.onAir || !!forceOff); // forceOff: transmisja z kamery bez nadawcy – jak poza anteną
   const shown = Math.min(t, dur);
   const simNote = tr('md.sim');
 

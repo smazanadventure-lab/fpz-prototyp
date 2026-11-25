@@ -307,6 +307,16 @@
 .ep-mgmt .x-live__stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
 .ep-mgmt .x-live__stats > div { padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--c-surface-2); }
 .ep-mgmt .x-live__stats b { font-size: var(--fs-xl); font-variant-numeric: tabular-nums; }
+.ep-mgmt .x-live__src { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 var(--sp-2); font-size: var(--fs-sm); }
+.ep-mgmt .x-live__stats b small { font-size: var(--fs-sm); font-weight: 400; color: var(--c-text-3); }
+.ep-mgmt .x-phonecast__body { display: flex; gap: var(--sp-4); align-items: flex-start; }
+.ep-mgmt .x-phonecast__qr { flex: none; display: flex; padding: var(--sp-2); border-radius: var(--r-md); background: #fff; box-shadow: inset 0 0 0 1px var(--c-line); color: var(--c-text-2); text-decoration: none; }
+.ep-mgmt .x-phonecast__qr .fpz-qr { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: var(--fs-2xs); }
+.ep-mgmt .x-phonecast__noqr { flex: none; display: grid; place-items: center; width: 96px; height: 96px; border-radius: var(--r-md); background: var(--c-surface-2); color: var(--c-text-3); }
+.ep-mgmt .x-phonecast__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.ep-mgmt .x-phonecast__txt p { margin: 0; line-height: 1.5; }
+.ep-mgmt .x-phonecast__link { display: flex; align-items: center; gap: 6px; font-weight: 700; overflow-wrap: anywhere; }
+@media (max-width: 560px) { .ep-mgmt .x-phonecast__body { flex-direction: column; align-items: center; } }
 .ep-mgmt .x-lcdprev { aspect-ratio: 16 / 9; border-radius: var(--r-md); background: var(--c-deep); color: var(--c-surface); padding: var(--sp-4); display: flex; flex-direction: column; justify-content: space-between; gap: var(--sp-3); border: calc(var(--u) * 6) solid var(--c-text); box-shadow: var(--shadow-2); }
 .ep-mgmt .x-lcdprev__top { display: flex; gap: var(--sp-2); align-items: center; font-size: var(--fs-sm); }
 .ep-mgmt .x-lcdprev__caps { font-size: var(--fs-lg); line-height: 1.35; font-weight: 700; }

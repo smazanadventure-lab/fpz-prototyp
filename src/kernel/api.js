@@ -448,7 +448,7 @@ export function startKernelTimers() {
   update((s) => applySchedules(s), { silent: true });
   setInterval(() => update((s) => {
     for (const d of s.devices) { if (d.power === 'on') { d.tempC = clamp(d.tempC + (Math.random() - 0.5) * 1.6, 34, 61); d.cpu = clamp(Math.round(d.cpu + (Math.random() - 0.5) * 8), 3, 92); d.uptimeH = +(d.uptimeH + 5 / 3600).toFixed(4); d.lastSeen = nowIso(); } }
-    if (s.live.onAir) s.live.viewers = clamp(s.live.viewers + Math.round((Math.random() - 0.35) * 4), 3, 400);
+    if (s.live.onAir && !s.live.streamId) s.live.viewers = clamp(s.live.viewers + Math.round((Math.random() - 0.35) * 4), 3, 400); // kamera: prawdziwa liczba od nadawcy (live.viewers)
   }, { silent: true }), 5000);
   setInterval(() => update((s) => applySchedules(s), { silent: true }), 20000);
 }

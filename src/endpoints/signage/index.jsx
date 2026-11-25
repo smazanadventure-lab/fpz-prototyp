@@ -8,6 +8,7 @@ import { strings, tr } from '../../kernel/i18n.js';
 import { clsx, fmtDate, fmtTime, pad2 } from '../../kernel/util.js';
 import { Icon, Logo, ScaleBox, Tag, Media, QR, PatternBand, LiveCaptions, Tabs } from '../../ui/components.jsx';
 import { VideoSim } from '../../ui/media.jsx';
+import { LiveVideo, useLiveWatch } from '../../ui/live.jsx';
 import { mediaItem, isMediaRef, itemVideoFile, itemIssue, codecLabel } from '../../kernel/media.js';
 import { usePreload, fileState, markFailed } from './preload.js';
 
@@ -20,6 +21,7 @@ strings({
   's.respeak': ['Symultaniczny przekaz tekstowy (respeaking)', 'Simultaneous text transmission (respeaking)'], 's.buy': ['Bilety w aplikacji FPŻ', 'Tickets in the FPŻ app'], 's.free': ['Wstęp wolny', 'Free entry'],
   's.service': ['Przerwa serwisowa', 'Maintenance break'], 's.fault': ['Ekran chwilowo niedostępny', 'Screen temporarily unavailable'], 's.empty': ['Brak przypisanej playlisty', 'No playlist assigned'], 's.nothing': ['Playlista nie ma nic do pokazania', 'The playlist has nothing to show'],
   's.loading': ['Wczytywanie filmu…', 'Loading the film…'],
+  's.camOff': ['Obraz z kamery niedostępny na tym ekranie', 'Camera picture unavailable on this screen'],
   's.rssSrc': ['Kanał RSS (symulacja)', 'RSS feed (simulated)'], 's.weather': ['Pogoda', 'Weather'], 's.wind': ['wiatr {v} km/h', 'wind {v} km/h'],
 });
 const DEFAULT_DUR = { captions: 15, events: 10, video: 15, news: 10, image: 8, rss: 10, clock: 8, weather: 8 };
@@ -160,6 +162,10 @@ function Screen({ device, files }) {
 
 function Player({ device, p, now, files }) {
   const s = useStore(); const { t } = useClient();
+  // transmisja z kamery: ekran, którego playlista ją pokazuje (napisy na żywo albo film „na żywo”), trzyma połączenie przez cały czas –
+  // obraz jest od razu, gdy pozycja wraca w pętli playlisty
+  const camLive = device.power === 'on' && s.live.onAir && s.live.streamId && (p.items || []).some((i) => i.type === 'captions' || (i.type === 'video' && s.videos.find((v) => v.id === i.ref)?.kind === 'live'));
+  useLiveWatch(camLive ? s.live.streamId : null);
   const dim = device.brightness != null && device.brightness < 80 ? Math.min(0.75, ((80 - device.brightness) / 80) * 0.8) : 0;
   if (device.power === 'off') return <div class="s-screen s-off" />;
   if (device.power === 'service' || device.power === 'fault') return (<div class="s-screen s-plate"><PatternBand class="s-plate__band" scale={1.2} /><div class="s-plate__box"><Icon name={device.power === 'fault' ? 'alert' : 'wrench'} size={90} /><h1>{t(device.power === 'fault' ? 's.fault' : 's.service')}</h1><p lang="en">{tr('en', device.power === 'fault' ? 's.fault' : 's.service')}</p></div><div class="s-dim" style={{ opacity: dim }} /></div>);
@@ -202,7 +208,8 @@ function Slide({ item, now, files }) {
       const url = st?.url;
       if (isMediaRef(item.ref)) { const m = mediaItem(item.ref); return <div class="s-video">{m ? <VideoLoop file={f} url={url} v={{ id: m.id, src: item.ref, title: { pl: item.title || m.name, en: '' }, durationSec: m.durationSec || item.durationSec || 20, kind: 'studio', captions: [] }} /> : null}{!url && <div class="s-video__t"><b>{item.title || m?.name}</b></div>}</div>; }
       const v = s.videos.find((x) => x.id === item.ref); if (!v) return null; // pozycje bez filmu pomija playback()
-      return <div class="s-video"><VideoLoop v={v} file={f} url={url} />{!url && <div class="s-video__t"><b>{v.title.pl}</b><span lang="en">{v.title.en}</span></div>}</div>;
+      const ttl = v.kind === 'live' && s.live.onAir && s.live.streamId ? s.live.title || v.title : v.title; // obraz z kamery – tytuł bieżącej transmisji
+      return <div class="s-video"><VideoLoop v={v} file={f} url={url} />{!url && <div class="s-video__t"><b>{ttl.pl}</b>{ttl.en && ttl.en !== ttl.pl && <span lang="en">{ttl.en}</span>}</div>}</div>;
     }
     case 'news': {
       const ns = sel.news().slice(0, 3);
@@ -242,9 +249,23 @@ function CaptionsSlide() {
     return (<div class="s-caps s-caps--wait"><Icon name="captions" size={120} /><h1>{tr('pl', 's.waitTitle')} <span lang="en">· {tr('en', 's.waitTitle')}</span></h1><p>{tr('pl', 's.wait')}</p><p lang="en" class="s-en">{tr('en', 's.wait')}</p>
       {next && <p class="s-caps__next"><Icon name="calendar" size={36} /><span>{tr('pl', 's.nextLive')}: <b>{next.title.pl}</b> · {fmtDate(next.start, 'pl', { weekday: 'long', day: 'numeric', month: 'long' })} {fmtTime(next.start, 'pl')}</span></p>}</div>);
   }
+  if (L.streamId) return <CamCaptions key={L.streamId} live={L} />;
   return (<div class="s-caps">
     <header class="s-caps__head"><Tag tone="live">{tr('pl', 's.live')} · LIVE</Tag><h1>{L.title?.pl}</h1><span class="s-caps__note"><Icon name="captions" size={30} /> {tr('pl', 's.respeak')}</span></header>
     <LiveCaptions lines={4} class="s-caps__lines" idleText="…" />
+  </div>);
+}
+/** Napisy na żywo z obrazem z kamery telefonu: obraz nad napisami (kamera pozioma) albo obok nich (telefon trzymany pionowo).
+ *  Bez nadawcy (stan 'ended') i bez WebRTC – dotychczasowa plansza samych napisów. */
+function CamCaptions({ live: L }) {
+  const [st, setSt] = useState('connecting'); const [portrait, setPortrait] = useState(false);
+  const cam = st !== 'ended' && st !== 'unsupported';
+  return (<div class={clsx('s-caps', cam && 's-caps--cam', cam && portrait && 'is-portrait')} data-cam={st}>
+    <header class="s-caps__head"><Tag tone="live">{tr('pl', 's.live')} · LIVE</Tag><h1>{L.title?.pl}</h1><span class="s-caps__note"><Icon name="captions" size={30} /> {st === 'unsupported' ? tr('pl', 's.camOff') : tr('pl', 's.respeak')}</span></header>
+    <div class="s-caps__body">
+      <LiveVideo streamId={L.streamId} chromeless showTitle={false} showCaptions={false} showViewers={false} ratio={null} class="s-caps__video" fallback={null} onState={setSt} onAspect={(w, h) => setPortrait(h > w)} />
+      <LiveCaptions lines={cam ? (portrait ? 6 : 2) : 4} class="s-caps__lines" idleText="…" />
+    </div>
   </div>);
 }
 

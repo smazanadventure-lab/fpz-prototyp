@@ -1,5 +1,5 @@
 // Końcówki samodzielne: każda część systemu pod własnym adresem, bez powłoki symulatora
-// (/app, /www, /kiosk/TZ.T1.3, /lcd/LCD-01, /bileter, /cms, /ekspozycja) – tak działają na docelowych urządzeniach.
+// (/app, /www, /kiosk/TZ.T1.3, /lcd/LCD-01, /bileter, /cms, /ekspozycja, /nadawanie) – tak działają na docelowych urządzeniach.
 import { useEffect, useState } from 'preact/hooks';
 import './standalone.css';
 import MobileApp from '../endpoints/mobile/index.jsx';
@@ -9,6 +9,7 @@ import SignageEndpoint from '../endpoints/signage/index.jsx';
 import ValidatorApp from '../endpoints/validator/index.jsx';
 import CmsApp from '../endpoints/cms/index.jsx';
 import MgmtApp from '../endpoints/mgmt/index.jsx';
+import BroadcastApp from '../endpoints/broadcast/index.jsx';
 import { makeApi } from '../kernel/api.js';
 import { useStore } from '../kernel/store.js';
 import { startBeat } from '../kernel/presence.js';
@@ -28,6 +29,7 @@ export const ROUTES = [
   { path: 'bileter', id: 'validator', title: 'Stanowisko bileterskie', hint: 'telefon lub tablet biletera' },
   { path: 'cms', id: 'cms', title: 'Panel CMS', hint: 'redakcja treści, oferta, gra, moderacja' },
   { path: 'ekspozycja', id: 'mgmt', title: 'Zarządzanie ekspozycją', hint: 'urządzenia, harmonogramy, awarie' },
+  { path: 'nadawanie', id: 'broadcast', title: 'Nadawanie z telefonu', hint: 'transmisja na żywo z kamery telefonu na ekrany LCD, do aplikacji i na stronę WWW (wersja serwerowa, https)' },
   { path: 'kody', id: 'qr', title: 'Kody QR do testów', hint: 'arkusz kodów do skanowania telefonem z ekranu albo po wydrukowaniu' },
 ];
 /** Adres końcówki: na serwerze własna ścieżka, w wersji jednoplikowej parametr ?end=. */
@@ -46,11 +48,12 @@ export function parseRoute() {
     case 'bileter': return { id: 'validator' };
     case 'cms': return { id: 'cms' };
     case 'ekspozycja': return { id: 'mgmt' };
+    case 'nadawanie': return { id: 'broadcast' };
     case 'kody': return { id: 'qr' };
     default: return null;
   }
 }
-const TITLES = { qr: 'FPŻ – kody QR do testów', mobile: 'FPŻ – aplikacja', web: 'Fabryka Pełna Życia', kiosk: 'FPŻ – kiosk', signage: 'FPŻ – ekran', validator: 'FPŻ – bileter', cms: 'FPŻ – CMS', mgmt: 'FPŻ – ekspozycja' };
+const TITLES = { qr: 'FPŻ – kody QR do testów', mobile: 'FPŻ – aplikacja', web: 'Fabryka Pełna Życia', kiosk: 'FPŻ – kiosk', signage: 'FPŻ – ekran', validator: 'FPŻ – bileter', cms: 'FPŻ – CMS', mgmt: 'FPŻ – ekspozycja', broadcast: 'FPŻ – nadawanie' };
 const vpOf = (w) => (w >= 1080 ? 'desktop' : w >= 700 ? 'tablet' : 'phone');
 
 /** Wyłączony ekran kiosku / LCD jest czarny – w wersji testowej podpowiadamy dlaczego (np. harmonogram nocny) i gdzie to zmienić. */
@@ -79,6 +82,7 @@ export function Standalone({ route }) {
     {id === 'validator' && <div class="sa-fill"><ValidatorApp standalone /></div>}
     {id === 'cms' && <div class="sa-fill"><CmsApp standalone /></div>}
     {id === 'mgmt' && <div class="sa-fill"><MgmtApp standalone /></div>}
+    {id === 'broadcast' && <div class="sa-fill"><BroadcastApp /></div>}
     {id === 'qr' && <div class="sa-fill"><QrSheet /></div>}
     {(id === 'kiosk' || id === 'signage') && <PowerNotice deviceId={route.device} />}
     <NetNotice quiet={id === 'kiosk' || id === 'signage'} />

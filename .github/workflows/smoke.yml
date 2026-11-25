@@ -20,7 +20,7 @@ jobs:
       - name: Strony końcówek
         run: |
           fail=""
-          for p in / /app /www /kiosk/TZ.T1.1 /lcd/LCD-01 /bileter /cms /ekspozycja /kody /q/FPZ-Q-101 /manifest.webmanifest; do
+          for p in / /app /www /kiosk/TZ.T1.1 /lcd/LCD-01 /bileter /cms /ekspozycja /nadawanie /kody /q/FPZ-Q-101 /manifest.webmanifest; do
             code=$(curl -s -o /dev/null -w '%{http_code}' -L "$BASE$p")
             echo "$p -> $code"
             if [ "$code" != "200" ]; then echo "::error::$p zwraca $code"; fail=1; fi

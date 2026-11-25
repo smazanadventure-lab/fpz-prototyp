@@ -40,7 +40,7 @@ if (args.blobs) {
   console.log('Magazyn: plik ' + path.relative(root, path.join(dataDir, 'state.json')));
 }
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.css': 'text/css' };
-const SPA = /^\/(app|www|kiosk|lcd|bileter|cms|ekspozycja|kody|q)(\/|$)/;
+const SPA = /^\/(app|www|kiosk|lcd|bileter|cms|ekspozycja|nadawanie|kody|q)(\/|$)/;
 let calls = 0; const stats = {};
 const server = http.createServer(async (req, res) => {
   try {

@@ -75,6 +75,16 @@
   & .md-time .md-video__livetxt { display: inline-flex; font-weight: 700; align-items: center; gap: .45em; color: var(--c-danger); letter-spacing: .06em; }
   & .md-video__offair { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: calc(var(--u) * 8); padding: 8%; text-align: center; color: #fff; background: rgba(0, 0, 0, .55); font-weight: 700; font-size: var(--fs-sm); }
   & .md-video__offair svg { width: calc(var(--u) * 32); height: calc(var(--u) * 32); }
+  /* transmisja z kamery telefonu (ui/live.jsx): plansza łączenia / kompletu odbiorców zamiast pustego kadru */
+  & .md-live__wait { position: absolute; inset: 0; z-index: 1; display: grid; place-content: center; justify-items: center; gap: calc(var(--u) * 10); padding: 8%; text-align: center; color: #fff; background: radial-gradient(circle at 50% 40%, #1d6b40, #0b2416 70%); font-size: var(--fs-sm); }
+  & .md-live__wait b { font-size: var(--fs-md); }
+  & .md-live__wait span { opacity: .8; }
+  & .md-live__wait > svg { width: calc(var(--u) * 34); height: calc(var(--u) * 34); color: var(--c-mint, #CCE5D8); }
+  & .md-live__ring { display: grid; place-items: center; width: calc(var(--u) * 64); height: calc(var(--u) * 64); border-radius: 50%; color: #fff; box-shadow: 0 0 0 calc(var(--u) * 3) rgba(255, 255, 255, .18); animation: md-livering 1.6s ease-in-out infinite; }
+  & .md-live__ring .fpz-logo { --u: calc(var(--fs-base, 16px) / 16 * .9); }
+  & .md-video--cam .md-video__frame { background: #000; }
+  & .md-video--cam:not(.md-video--chromeless) .md-video__frame { cursor: default; }
+  @media (prefers-reduced-motion: reduce) { & .md-live__ring { animation: none; } }
   & .md-video__bar { padding: 0 calc(var(--u) * 10) calc(var(--u) * 6); background: var(--c-surface); }
   & .md-video__bar .md-range { height: calc(var(--md-hit) * .8); }
   & .md-video__row, & .md-audio__row { display: flex; align-items: center; gap: calc(var(--u) * 4); min-height: var(--md-hit); min-width: 0; }
@@ -325,3 +335,4 @@
 .fpz-theme .md-tech__hint { font-size: var(--fs-2xs); line-height: 1.35; color: var(--c-warn); }
 .fpz-theme .md-tech__hint[data-warn="unplayable"] { color: var(--c-danger); }
 .fpz-theme .md-video--off { position: relative; background: #000; }
+@keyframes md-livering { 0%, 100% { box-shadow: 0 0 0 calc(var(--u, 1px) * 3) rgba(255, 255, 255, .18); } 50% { box-shadow: 0 0 0 calc(var(--u, 1px) * 12) rgba(95, 178, 135, .28); } }

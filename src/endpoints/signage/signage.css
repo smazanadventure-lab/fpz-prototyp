@@ -69,6 +69,10 @@
 .ep-signage .s-video { position: absolute; inset: 0; background: #000; }
 .ep-signage .s-video .s-vsim, .ep-signage .s-video .fpz-video { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto !important; border-radius: 0 !important; font-size: var(--fs-lg); }
 .ep-signage .s-video .fpz-video button, .ep-signage .s-video .fpz-video input[type="range"] { display: none; }
+/* film „na żywo”: znacznik NA ŻYWO w prawym górnym rogu (lewy zajmuje tytuł pozycji); obraz z kamery wypełnia slot nad paskiem */
+.ep-signage .s-video .md-video__top { align-items: flex-end; padding: 46px 60px; }
+.ep-signage .s-video .md-video--cam .md-video__frame { aspect-ratio: auto !important; height: 100%; }
+.ep-signage .s-caps__video .md-video__top { display: none; }
 /* Prawdziwy film (plik albo obraz z kamery): nic go nie przykrywa – bez przyciemnienia pod przyciski odtwarzacza i bez paska postępu pętli */
 .ep-signage .s-video .md-video--file .md-video__shade { display: none; }
 .ep-signage:has(.s-video video) .s-prog { display: none; }
@@ -97,6 +101,16 @@
 .ep-signage .s-caps__lines.fpz-captions { flex: 1; justify-content: flex-end; gap: 24px; padding: 20px 0 0; background: transparent; border-radius: 0; font-size: 76px; line-height: 1.2; }
 .ep-signage .s-caps__lines.fpz-captions p { opacity: .55; }
 .ep-signage .s-caps__lines.fpz-captions p:last-child { opacity: 1; color: #FFE600; }
+/* napisy z obrazem z kamery telefonu (transmisja z /nadawanie): obraz nad napisami, a przy telefonie trzymanym pionowo – obok */
+.ep-signage .s-caps__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ep-signage .s-caps--cam { padding: 34px 70px 36px; }
+.ep-signage .s-caps--cam .s-caps__head { padding-bottom: 18px; }
+.ep-signage .s-caps__video { flex: 1; min-height: 0; margin: 22px 0 0; border-radius: 16px; box-shadow: none; background: #000; font-size: var(--fs-md); }
+.ep-signage .s-caps__video .md-video__frame { height: 100%; }
+.ep-signage .s-caps--cam .s-caps__lines.fpz-captions { flex: none; min-height: 2.6em; gap: 6px; padding-top: 18px; font-size: 62px; line-height: 1.18; }
+.ep-signage .s-caps--cam.is-portrait .s-caps__body { flex-direction: row; gap: 56px; }
+.ep-signage .s-caps--cam.is-portrait .s-caps__video { flex: none; height: auto; align-self: stretch; aspect-ratio: 9 / 16; margin-bottom: 0; }
+.ep-signage .s-caps--cam.is-portrait .s-caps__lines.fpz-captions { flex: 1; min-width: 0; justify-content: flex-end; padding-top: 22px; font-size: 66px; }
 .ep-signage .s-caps--wait { align-items: center; justify-content: center; gap: 26px; text-align: center; background: #0d1f16; }
 .ep-signage .s-caps--wait > svg { color: var(--c-green); }
 .ep-signage .s-caps--wait h1 { font-size: var(--fs-3xl); }

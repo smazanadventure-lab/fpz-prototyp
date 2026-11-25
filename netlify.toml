@@ -41,6 +41,10 @@
   to = "/index.html"
   status = 200
 [[redirects]]
+  from = "/nadawanie/*"
+  to = "/index.html"
+  status = 200
+[[redirects]]
   from = "/kody/*"
   to = "/index.html"
   status = 200
@@ -54,7 +58,7 @@
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(self), geolocation=(self)"
+    Permissions-Policy = "camera=(self), microphone=(self), geolocation=(self)"
 [[headers]]
   for = "/sw.js"
   [headers.values]
