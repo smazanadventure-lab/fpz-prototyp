@@ -110,3 +110,6 @@ export function useSoundscape() {
   useEffect(() => () => stop(), []);
   return { tracks: TRACKS, current, playing, play, stop, next: () => step(1), prev: () => step(-1), volume, setVolume: (v) => { setVol(v); if (gain.current) gain.current.gain.value = v * 0.25; } };
 }
+/** Zaślepka: znaczniki techniczne pliku wideo (pełna wersja w src/ui/media.jsx). */
+export const VideoTechTags = () => null;
+export const useVideoInfo = (m) => m;

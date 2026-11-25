@@ -268,11 +268,13 @@ const ADMIN_OPS = globalThis.FPZ_APP_ONLY ? [] : [
     return ok({ incident: inc });
   }],
   /** Ręczne zgłoszenie usterki (opcjonalnie z wyłączeniem urządzenia z pracy). */
-  ['devices.reportIncident', 'POST', '/incidents', (ctx, { deviceId, title, severity = 'P3', stopDevice = false } = {}) => {
+  /** Zgłoszenie usterki. auto: true – zgłasza samo urządzenie (np. ekran, który nie odtworzył pliku); takie samo otwarte zgłoszenie nie powstaje drugi raz. */
+  ['devices.reportIncident', 'POST', '/incidents', (ctx, { deviceId, title, severity = 'P3', stopDevice = false, auto = false } = {}) => {
     const s = ctx.s; const d = byId(s.devices, deviceId); if (!d) return fail('NOT_FOUND', 'Nie ma takiego urządzenia.', 'No such device.'); if (stopDevice) d.power = 'fault';
-    const inc = { id: uid('inc'), deviceId, title: String(title || 'Zgłoszenie usterki'), severity, status: 'open', createdAt: nowIso(), reactedAt: null, resolvedAt: null, note: '', source: 'zgłoszenie ręczne' }; s.incidents.unshift(inc);
-    for (const r of s.alertRules.filter((x) => x.active)) { if (r.event === 'fault' || (r.event === 'fault-critical' && ['P1', 'P2'].includes(severity))) outbox(s, r.channel, r.recipient, `[${severity}] Usterka: ${d.name}`, `${inc.title}. Zgłoszenie ${inc.id} (ręczne).`); }
-    audit(ctx, 'Ręczne zgłoszenie usterki', d.name); return ok({ incident: inc });
+    const ttl = String(title || 'Zgłoszenie usterki'); const dup = auto && s.incidents.find((i) => i.deviceId === deviceId && i.title === ttl && !['closed', 'resolved'].includes(i.status)); if (dup) return ok({ incident: dup, duplicate: true });
+    const inc = { id: uid('inc'), deviceId, title: ttl, severity, status: 'open', createdAt: nowIso(), reactedAt: null, resolvedAt: null, note: '', source: auto ? 'urządzenie – zgłoszenie automatyczne' : 'zgłoszenie ręczne' }; s.incidents.unshift(inc);
+    for (const r of s.alertRules.filter((x) => x.active)) { if (r.event === 'fault' || (r.event === 'fault-critical' && ['P1', 'P2'].includes(severity))) outbox(s, r.channel, r.recipient, `[${severity}] Usterka: ${d.name}`, `${inc.title}. Zgłoszenie ${inc.id} (${auto ? 'z urządzenia' : 'ręczne'}).`); }
+    audit(ctx, auto ? 'Automatyczne zgłoszenie z urządzenia' : 'Ręczne zgłoszenie usterki', d.name); return ok({ incident: inc });
   }],
   /** Wpis do dziennika zdarzeń (np. test odtworzeniowy kopii zapasowej). */
   ['sys.audit', 'POST', '/audit', (ctx, action, target) => { audit(ctx, String(action || 'Zdarzenie'), target); return ok(); }],

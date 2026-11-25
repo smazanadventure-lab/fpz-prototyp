@@ -244,6 +244,30 @@
 .ep-mgmt .x-item .fpz-input, .ep-mgmt .x-item .fpz-select { min-height: calc(var(--u) * 40); padding-top: calc(var(--u) * 6); padding-bottom: calc(var(--u) * 6); background-color: var(--c-surface); }
 .ep-mgmt .x-additem { display: flex; gap: var(--sp-2); }
 .ep-mgmt .x-additem .fpz-select { max-width: calc(var(--u) * 320); }
+.ep-mgmt .x-additem { flex-wrap: wrap; align-items: center; }
+/* playlista: gdzie gra, pozycje pomijane przez ekrany, nowa pozycja, wgrywanie filmu z dysku */
+.ep-mgmt .x-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ep-mgmt .x-plwhere { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.ep-mgmt .x-plwhere .x-lbl { margin-right: var(--sp-1); }
+.ep-mgmt .x-pill--link { gap: 6px; color: var(--c-text); text-decoration: none; font-weight: 500; }
+.ep-mgmt .x-pill--link b { color: var(--c-accent); }
+.ep-mgmt .x-pill--link:hover { background: var(--c-surface-2); }
+.ep-mgmt .x-plwhere__none { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--c-warn); }
+.ep-mgmt .x-item.is-bad { box-shadow: inset calc(var(--u) * 3) 0 0 var(--c-danger); background: var(--c-danger-bg); }
+.ep-mgmt .x-item.is-new { animation: x-flash 2.4s ease; }
+.ep-mgmt .x-item:focus { outline: none; }
+.ep-mgmt .x-item:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+@keyframes x-flash { 0%, 55% { box-shadow: 0 0 0 calc(var(--u) * 3) var(--c-green); background: var(--c-mint-light); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.ep-mgmt .x-item__bad { font-size: var(--fs-2xs); font-weight: 600; color: var(--c-danger); }
+.ep-mgmt .x-item__hint { display: flex; align-items: flex-start; gap: 6px; font-size: var(--fs-2xs); line-height: 1.4; color: var(--c-info); }
+.ep-mgmt .x-item__tech { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--sp-2); }
+.ep-mgmt .x-item__tech .md-tech { flex: 1 1 calc(var(--u) * 260); }
+.ep-mgmt .x-upload { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: calc(var(--u) * 34); padding: 0 calc(var(--u) * 12); border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: 700; color: var(--c-accent); box-shadow: inset 0 0 0 calc(var(--u) * 1.25) var(--c-accent); cursor: pointer; overflow: hidden; white-space: nowrap; }
+.ep-mgmt .x-upload:hover { background: var(--c-mint-light); }
+.ep-mgmt .x-upload:focus-within { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.ep-mgmt .x-upload.is-off { cursor: default; opacity: .85; }
+.ep-mgmt .x-upload__bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--c-line); }
+.ep-mgmt .x-upload__bar i { display: block; height: 100%; background: var(--c-accent); transition: width .3s; }
 .ep-mgmt .x-zonebtns { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
 .ep-mgmt .x-zonebtns .x-lbl { width: 100%; }
 .ep-mgmt .x-assign { display: flex; flex-direction: column; }

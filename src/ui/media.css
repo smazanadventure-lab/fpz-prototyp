@@ -319,3 +319,9 @@
 @media (prefers-reduced-motion: reduce) {
   .fpz-theme .md-ar__cam, .fpz-theme .md-video__grain, .fpz-theme .md-video__scratch, .fpz-theme .md-wave i, .fpz-theme .md-pjmfig__arm, .fpz-theme .md-pjmfig__fore { animation: none !important; }
 }
+/* znaczniki techniczne pliku wideo (kodek, ciężki plik) – biblioteka CMS i edytor playlist */
+.fpz-theme .md-tech { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fpz-theme .md-tech__tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.fpz-theme .md-tech__hint { font-size: var(--fs-2xs); line-height: 1.35; color: var(--c-warn); }
+.fpz-theme .md-tech__hint[data-warn="unplayable"] { color: var(--c-danger); }
+.fpz-theme .md-video--off { position: relative; background: #000; }

@@ -1,12 +1,12 @@
 // CMS – treści: wpisy (lista + edytor z podglądem), kategorie, aktualności, galeria, filmy, biblioteka mediów.
 import { useState, useEffect } from 'preact/hooks';
 import { useClient } from '../../kernel/client.jsx';
-import { useStore } from '../../kernel/store.js';
+import { useStore, getState } from '../../kernel/store.js';
 import { sel } from '../../kernel/api.js';
 import { deepClone, matches, localIso, fmtDateTime, fmtDuration, ago, download, clsx } from '../../kernel/util.js';
-import { removeMedia, mediaItem, mediaUrl, mediaRef, isMediaRef, MEDIA_ACCEPT_ALL, MEDIA_MAX } from '../../kernel/media.js';
+import { removeMedia, mediaItem, mediaUrl, mediaRef, isMediaRef, MEDIA_ACCEPT_ALL, MEDIA_MAX, videoTech } from '../../kernel/media.js';
 import { Icon, Button, IconButton, Modal, Input, Textarea, Select, Switch, Checkbox, SearchInput, Tabs, Tag, Notice, Empty, Media, Rich, QR, qrSvgString } from '../../ui/components.jsx';
-import { VideoSim, AudioGuide, SOUND_TRACKS } from '../../ui/media.jsx';
+import { VideoSim, AudioGuide, SOUND_TRACKS, VideoTechTags, useVideoInfo } from '../../ui/media.jsx';
 import { useCms, useRun, useDraft, DataTable, Crud, Form, FieldBox, LangInputs, MediaPicker, MediaThumb, mediaMeta, useUploads, UploadQueue, KIND, StatusTag, STATUS, CHANNELS, When, Seg, Head, poiOpts, langsOn, missingLangs, denyText, getIn } from './kit.jsx';
 
 const L0 = () => ({ pl: '', en: '' });
@@ -268,7 +268,7 @@ export function GalleryCrud({ openId }) {
 }
 export function VideosCrud({ openId }) {
   return (<div class="c-page"><Head title="Filmy" sub="Filmy z wirtualnego studia, archiwalne i transmisje – z napisami (wymóg dostępności)" />
-    <Crud col="videos" title="Filmy" noun="film" openId={openId} modalSize="xl" search={(v) => [v.title.pl, v.title.en]}
+    <Crud col="videos" title="Filmy" noun="film" openId={openId} modalSize="xl" search={(v) => [v.title.pl, v.title.en]} deleteWarn={(v) => playlistWarn(playlistsUsing(getState(), (i) => i.type === 'video' && i.ref === v.id), 'film')}
       blank={() => ({ title: L0(), description: L0(), durationSec: 60, ill: 'studio', kind: 'studio', year: null, captions: [{ t: 0, text: L0() }] })}
       beforeSave={(d) => ({ ...d, captions: (d.captions || []).slice().sort((a, b) => a.t - b.t) })}
       cols={[{ k: 'title', label: 'Tytuł', render: (v) => <b>{v.title.pl}</b> }, { k: 'src', label: 'Plik', sort: (v) => (v.src && mediaItem(v.src) ? 0 : 1), render: (v) => (v.kind === 'live' ? <Tag tone="live">na żywo</Tag> : v.src && mediaItem(v.src) ? <Tag tone="green" icon="film">plik wideo</Tag> : <Tag icon="sparkles">symulacja</Tag>) }, { k: 'kind', label: 'Rodzaj', render: (v) => ({ studio: 'Studio', archive: 'Archiwalny', live: 'Transmisja' }[v.kind] || v.kind) }, { k: 'durationSec', label: 'Czas', align: 'right', render: (v) => fmtDuration(v.durationSec || 0) }, { k: 'captions', label: 'Napisy', sort: (v) => v.captions?.length || 0, render: (v) => <Tag tone={v.captions?.length ? 'green' : 'warn'} icon="captions">{v.captions?.length || 0} linii</Tag> }]}
@@ -286,6 +286,10 @@ function CaptionsEditor({ value, onChange, max }) {
     <Button size="sm" variant="secondary" icon="plus" onClick={() => onChange([...value, { t: value.length ? Math.min(max || 9999, Math.max(...value.map((c) => c.t)) + 5) : 0, text: L0() }])}>Dodaj linię napisów</Button>
   </div>);
 }
+
+/** Playlisty ekranów z pozycjami spełniającymi warunek → nazwy (do ostrzeżeń przy usuwaniu filmu / pliku). */
+export const playlistsUsing = (s, test) => (s.playlists || []).filter((p) => (p.items || []).some(test)).map((p) => p.name);
+const playlistWarn = (names, what) => (names.length ? `${what === 'film' ? 'Film' : 'Plik'} jest w playlistach ekranów: ${names.map((n) => `„${n}”`).join(', ')}. Ekrany będą pomijać te pozycje, dopóki w playliście nie wybierzesz innego ${what === 'film' ? 'filmu' : 'pliku'} albo jej nie usuniesz.` : null);
 
 /* ════════════ BIBLIOTEKA MEDIÓW ════════════ */
 // Pliki (obrazy, wideo, audio) wgrywane przez uploadMedia (kernel/media.js): w pilotażu serwerowym trafiają na serwer (/api/media/<id>),
@@ -315,13 +319,18 @@ export function mediaUsageIndex(s) {
 export const mediaUsages = (s, m) => mediaUsageIndex(s).get(m.id) || [];
 const STORED = { server: 'serwer (pilotaż) – plik dostępny na wszystkich urządzeniach', session: 'tylko ta karta przeglądarki (wersja jednoplikowa)' };
 
+/** Szczegóły pliku wideo: kodek, kl./s, przepływność + ostrzeżenia z podpowiedziami. */
+function VideoTechRow({ m }) {
+  const x = useVideoInfo(m); const t = videoTech(x); if (!t) return null;
+  return <><dt>Format</dt><dd data-testid="media-tech">{t}<VideoTechTags m={x} hint class="c-tech" /></dd></>;
+}
 export function MediaLibrary() {
   const s = useStore(); const { api } = useClient(); const { can, ask } = useCms(); const run = useRun();
   const [type, setType] = useState(''); const [q, setQ] = useState(''); const [cur, setCur, set] = useDraft(null); const [over, setOver] = useState(false);
   const ok = can('media'); const remote = isRemote(s); const up = useUploads();
   const uses = mediaUsageIndex(s);
   const list = s.media.filter((m) => (!type || m.type === type) && matches(q, m.name, (m.tags || []).join(' '), m.alt?.pl)).slice().sort((a, b) => String(b.uploadedAt || '').localeCompare(String(a.uploadedAt || '')));
-  const del = (m) => { const u = uses.get(m.id) || []; ask({ title: 'Usunąć plik?', text: <>„{m.name}” zostanie usunięty z biblioteki{m.stored === 'server' ? ' i z serwera' : ''}.{u.length > 0 && <Notice tone="warn">Plik jest używany ({u.length}): {u.join('; ')}. Te miejsca wrócą do ilustracji systemowej, symulacji filmu lub syntezy mowy.</Notice>}</>, ok: 'Usuń plik',
+  const del = (m) => { const u = uses.get(m.id) || []; const pls = playlistWarn(playlistsUsing(s, (i) => i.ref === mediaRef(m.id)), 'file'); ask({ title: 'Usunąć plik?', text: <>„{m.name}” zostanie usunięty z biblioteki{m.stored === 'server' ? ' i z serwera' : ''}.{u.length > 0 && <Notice tone="warn">Plik jest używany ({u.length}): {u.join('; ')}. Te miejsca wrócą do ilustracji systemowej, symulacji filmu lub syntezy mowy.</Notice>}{pls && <Notice tone="danger" class="c-del-pl">{pls}</Notice>}</>, ok: 'Usuń plik',
     onOk: async () => { const r = await removeMedia(m.id, { api }); if (run(r, `Usunięto „${m.name}”`)) setCur(null); } }); };
   const types = [{ id: '', label: 'Wszystkie', badge: s.media.length }, ...['image', 'video', 'audio'].map((id) => ({ id, label: KIND[id].label, icon: KIND[id].icon, badge: s.media.filter((m) => m.type === id).length })),
     ...(s.media.some((m) => !KIND[m.type]) ? [{ id: 'model3d', label: 'Inne', badge: s.media.filter((m) => !KIND[m.type]).length }] : [])];
@@ -342,7 +351,7 @@ export function MediaLibrary() {
     {list.length ? <div class="c-mgrid">{list.map((m) => { const u = (uses.get(m.id) || []).length; return (
       <button type="button" class="c-mcard" key={m.id} data-testid="media-card" data-media={m.id} data-type={m.type} onClick={() => setCur(deepClone(m))}>
         <span class="c-mcard__pv"><MediaThumb m={m} class="c-mcard__th" /></span>
-        <b title={m.name}>{m.name}</b><small>{mediaMeta(m)}</small><small class={u ? 'c-ok' : ''}>{u ? `używany: ${u}×` : 'nieużywany'}</small></button>); })}</div>
+        <b title={m.name}>{m.name}</b><small>{mediaMeta(m)}</small>{m.type === 'video' && <VideoTechTags m={m} class="c-mcard__tech" />}<small class={u ? 'c-ok' : ''}>{u ? `używany: ${u}×` : 'nieużywany'}</small></button>); })}</div>
       : <Empty icon="image" title={s.media.length ? 'Brak plików spełniających kryteria' : 'Biblioteka jest pusta'} text="Wgraj pierwszy plik powyżej." />}
     <Modal open={!!cur} onClose={() => setCur(null)} size="xl" title={cur?.name}
       footer={cur && <><Button variant="danger" size="sm" icon="trash" disabled={!ok} data-testid="media-delete" onClick={() => del(cur)}>Usuń plik</Button><span class="c-grow" /><Button variant="secondary" size="sm" onClick={() => setCur(null)}>Zamknij</Button><Button size="sm" icon="save" disabled={!ok} onClick={() => { if (run(api.cms.save('media', { id: cur.id, name: cur.name, alt: cur.alt, tags: cur.tags }), 'Zapisano opis pliku')) setCur(null); }}>Zapisz</Button></>}>
@@ -356,6 +365,7 @@ export function MediaLibrary() {
           <dl class="c-dl"><dt>Rodzaj</dt><dd>{KIND[cur.type]?.label || cur.type} · <code>{cur.mime || '—'}</code></dd><dt>Rozmiar</dt><dd>{fmtSize(cur.size)}{cur.parts > 1 ? ` (wysłano w ${cur.parts} częściach)` : ''}</dd>
             {cur.w && cur.h ? <><dt>Wymiary</dt><dd>{cur.w} × {cur.h} px</dd></> : null}
             {cur.durationSec ? <><dt>Długość</dt><dd>{fmtDuration(cur.durationSec)}</dd></> : null}
+            {cur.type === 'video' && <VideoTechRow m={cur} />}
             <dt>Zapis</dt><dd>{STORED[cur.stored] || (cur.dataUrl ? 'w danych przeglądarki' : 'tylko metryczka (bez pliku)')}</dd>
             <dt>Wgrano</dt><dd>{cur.uploadedAt ? fmtDateTime(cur.uploadedAt, 'pl') : '—'}</dd>
             {url && !url.startsWith('data:') && <><dt>Adres</dt><dd><a href={url} target="_blank" rel="noopener" class="c-small">{cur.stored === 'server' ? `/api/media/${cur.id}` : 'plik tymczasowy'}</a></dd></>}

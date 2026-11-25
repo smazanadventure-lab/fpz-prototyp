@@ -437,3 +437,7 @@
 .ep-cms .c-sounds__txt p { margin: 2px 0 0; }
 @container cms (max-width: 900px) { .ep-cms .c-sounds > li { grid-template-columns: auto minmax(0, 1fr); } .ep-cms .c-sounds > li > .c-mpick { grid-column: 2; } }
 .ep-cms .c-split > .c-mprev { align-content: center; justify-items: center; }
+/* biblioteka mediów: kodek i ostrzeżenia dla plików wideo */
+.ep-cms .c-mcard__tech .fpz-tag { font-size: var(--fs-2xs); }
+.ep-cms .c-tech { margin-top: 6px; }
+.ep-cms .c-upq__warn { display: block; color: var(--c-warn); font-weight: 600; }

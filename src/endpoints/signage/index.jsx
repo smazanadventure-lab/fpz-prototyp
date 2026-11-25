@@ -1,5 +1,5 @@
 // Końcówka „Ekrany LCD”: odtwarzacz playlist (informator, wideo, aktualności, RSS, pasek informacyjny) i napisy na żywo.
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import './signage.css';
 import { Client, useClient, useNow } from '../../kernel/client.jsx';
 import { useStore, getState } from '../../kernel/store.js';
@@ -8,7 +8,8 @@ import { strings, tr } from '../../kernel/i18n.js';
 import { clsx, fmtDate, fmtTime, pad2 } from '../../kernel/util.js';
 import { Icon, Logo, ScaleBox, Tag, Media, QR, PatternBand, LiveCaptions, Tabs } from '../../ui/components.jsx';
 import { VideoSim } from '../../ui/media.jsx';
-import { mediaItem, isMediaRef } from '../../kernel/media.js';
+import { mediaItem, isMediaRef, itemVideoFile, itemIssue, codecLabel } from '../../kernel/media.js';
+import { usePreload, fileState, markFailed } from './preload.js';
 
 if (typeof window !== 'undefined') window.__fpzKiosk = Object.assign(window.__fpzKiosk || {}, { makeApi, getState });
 
@@ -17,7 +18,8 @@ strings({
   's.live': ['Na żywo', 'Live'], 's.captions': ['Napisy na żywo', 'Live captions'], 's.waitTitle': ['Napisy na żywo', 'Live captions'],
   's.wait': ['Napisy pojawią się tutaj po rozpoczęciu transmisji.', 'Captions will appear here when the broadcast starts.'], 's.nextLive': ['Najbliższa transmisja', 'Next broadcast'],
   's.respeak': ['Symultaniczny przekaz tekstowy (respeaking)', 'Simultaneous text transmission (respeaking)'], 's.buy': ['Bilety w aplikacji FPŻ', 'Tickets in the FPŻ app'], 's.free': ['Wstęp wolny', 'Free entry'],
-  's.service': ['Przerwa serwisowa', 'Maintenance break'], 's.fault': ['Ekran chwilowo niedostępny', 'Screen temporarily unavailable'], 's.empty': ['Brak przypisanej playlisty', 'No playlist assigned'],
+  's.service': ['Przerwa serwisowa', 'Maintenance break'], 's.fault': ['Ekran chwilowo niedostępny', 'Screen temporarily unavailable'], 's.empty': ['Brak przypisanej playlisty', 'No playlist assigned'], 's.nothing': ['Playlista nie ma nic do pokazania', 'The playlist has nothing to show'],
+  's.loading': ['Wczytywanie filmu…', 'Loading the film…'],
   's.rssSrc': ['Kanał RSS (symulacja)', 'RSS feed (simulated)'], 's.weather': ['Pogoda', 'Weather'], 's.wind': ['wiatr {v} km/h', 'wind {v} km/h'],
 });
 const DEFAULT_DUR = { captions: 15, events: 10, video: 15, news: 10, image: 8, rss: 10, clock: 8, weather: 8 };
@@ -25,17 +27,54 @@ const KIND_PL = { lcd: 'Ekran LCD', projector: 'Projektor' };
 const POWER = { on: ['Włączony', 'green'], off: ['Wyłączony', 'neutral'], service: ['Serwis', 'warn'], fault: ['Awaria', 'danger'] };
 const W = 1920, H = 1080;
 
-/** Plan odtwarzania wyliczany z zegara – dwa ekrany z tą samą playlistą pokazują tę samą pozycję. */
-export function playback(s, device, nowMs) {
+/**
+ * Plan odtwarzania wyliczany z zegara – dwa ekrany z tą samą playlistą pokazują tę samą pozycję.
+ * Pomijane są pozycje, których ekran nie pokaże: film / plik usunięty (itemIssue) oraz plik, którego ten ekran nie odtwarza
+ * albo nie pobrał – files(id) → stan z pamięci ekranu (preload.js: { state: 'loading'|'ready'|'error', reason }); bez files – bez tej kontroli.
+ */
+export function playback(s, device, nowMs, files) {
   const pl = s.playlists.find((p) => p.id === device?.playlistId) || null; const items = pl?.items || [];
-  const ticker = items.filter((i) => i.type === 'ticker');
-  const timed = items.filter((i) => i.type !== 'ticker').map((i) => ({ ...i, dur: i.durationSec > 0 ? i.durationSec : DEFAULT_DUR[i.type] || 10 }));
+  const ticker = items.filter((i) => i.type === 'ticker'); const skipped = [];
+  const all = items.filter((i) => i.type !== 'ticker');
+  const timed = all.filter((i) => {
+    const bad = itemIssue(s, i); if (bad) { skipped.push({ item: i, reason: bad }); return false; }
+    const f = files && itemVideoFile(s, i); const st = f && files(f.id);
+    if (st?.state === 'error') { skipped.push({ item: i, reason: st.reason, file: f, codec: st.codec || f.codec || null }); return false; }
+    return true;
+  }).map((i) => ({ ...i, dur: i.durationSec > 0 ? i.durationSec : DEFAULT_DUR[i.type] || 10 }));
   const caps = timed.find((i) => i.type === 'captions');
-  if (!timed.length) return { pl, items, ticker, timed, item: null, idx: -1, progress: 0 };
-  if (caps && s.live.onAir) return { pl, items, ticker, timed, item: caps, idx: timed.indexOf(caps), progress: 1, live: true, cycle: 'live' };
+  if (!timed.length) return { pl, items, ticker, timed, skipped, item: null, idx: -1, progress: 0, nothing: all.length > 0 };
+  if (caps && s.live.onAir) return { pl, items, ticker, timed, skipped, item: caps, idx: timed.indexOf(caps), progress: 1, live: true, cycle: 'live' };
   const total = timed.reduce((a, i) => a + i.dur, 0); const sec = nowMs / 1000; const t = sec % total; let acc = 0, idx = 0;
   for (; idx < timed.length; idx++) { if (t < acc + timed[idx].dur) break; acc += timed[idx].dur; }
-  return { pl, items, ticker, timed, item: timed[idx], idx, progress: (t - acc) / timed[idx].dur, cycle: Math.floor(sec / total) };
+  return { pl, items, ticker, timed, skipped, item: timed[idx], idx, progress: (t - acc) / timed[idx].dur, cycle: Math.floor(sec / total) };
+}
+/** Pliki wideo z biblioteki, których potrzebują playlisty podanych ekranów (do wczytania z wyprzedzeniem). */
+export function playlistFiles(s, devices) {
+  const out = new Map();
+  for (const d of devices) for (const i of s.playlists.find((p) => p.id === d.playlistId)?.items || []) { const f = itemVideoFile(s, i); if (f) out.set(f.id, f); }
+  return [...out.values()];
+}
+const FMT_INC = { hevc: 'HEVC/H.265', h264: 'H.264', av1: 'AV1', vp9: 'VP9' };
+/** Opis pominiętej pozycji dla symulatora (techniczny, nie na sam ekran). */
+export const skipText = (k) => `Pominięto: ${k.item.title || k.file?.name || 'film'} – ${k.reason === 'download' ? 'nie udało się pobrać pliku' : k.reason === 'film' ? 'film usunięto z CMS' : k.reason === 'file' ? 'plik usunięto z biblioteki' : k.codec && k.codec !== 'h264' ? `ten ekran nie odtwarza formatu ${codecLabel(k.codec)}` : 'ten ekran nie odtwarza tego pliku'}`;
+const reported = new Set(); // urządzenie + plik – zgłoszenie raz na kartę (i nie powtarzamy, gdy otwarte zgłoszenie już jest)
+/** Pliki, których ekran nie odtwarza / nie pobrał → jedno zgłoszenie usterki na urządzenie i plik w „Zarządzaniu ekspozycją”. */
+function useFileIncidents(s, devices, files) {
+  const todo = [];
+  for (const d of devices) {
+    if (d.power !== 'on') continue;
+    for (const k of playback(s, d, 0, files).skipped) {
+      if (!k.file || (k.reason !== 'decode' && k.reason !== 'download')) continue;
+      const fmt = FMT_INC[k.codec] || null;
+      const title = k.reason === 'download' ? `Ekran nie może pobrać pliku „${k.file.name}”` : `Ekran nie odtwarza pliku „${k.file.name}”${fmt && k.codec !== 'h264' ? ` (format ${fmt} nie jest obsługiwany przez przeglądarkę ekranu)` : ' (przeglądarka ekranu nie potrafi go odtworzyć)'}`;
+      const key = d.id + '|' + k.file.id; if (reported.has(key)) continue;
+      if ((s.incidents || []).some((x) => x.deviceId === d.id && x.status !== 'closed' && x.title === title)) { reported.add(key); continue; }
+      todo.push({ key, deviceId: d.id, title });
+    }
+  }
+  const sig = todo.map((x) => x.key).join(',');
+  useEffect(() => { for (const x of todo) { if (reported.has(x.key)) continue; reported.add(x.key); makeApi('signage:' + x.deviceId).devices?.reportIncident?.({ deviceId: x.deviceId, title: x.title, severity: 'P3', auto: true }); } }, [sig]);
 }
 
 export default function SignageEndpoint({ standalone } = {}) {
@@ -47,18 +86,19 @@ export default function SignageEndpoint({ standalone } = {}) {
 function StandaloneScreen({ id }) {
   const s = useStore(); const now = useNow(250);
   const list = s.devices.filter((d) => d.kind === 'lcd' || d.kind === 'projector'); const device = list.find((d) => d.id === id);
+  const mine = device ? [device] : []; const files = usePreload(playlistFiles(s, mine)); useFileIncidents(s, mine, files);
   if (!device) return (
     <div class="ep-signage s-sa s-sa--err fpz-theme" data-theme="light">
       <div class="s-sa__box"><Icon name="alert" size={40} /><h1>Nieznany ekran „{String(id)}”</h1><p>Poprawne adresy ekranów:</p>
         <ul>{list.map((d) => <li key={d.id}><a href={'/lcd/' + d.id}><code>/lcd/{d.id}</code></a> – {d.name}</li>)}</ul></div>
     </div>);
-  const p = playback(s, device, now.getTime());
+  const p = playback(s, device, now.getTime(), files);
   return (
     <div class="ep-signage s-sa fpz-theme" data-theme="light">
       <ScaleBox width={W} height={H} maxScale={4}>
         <div class="s-sa__panel">
           <Client id={'signage:' + device.id} base={34} class="ep-signage" theme={device.night ? 'night' : undefined}>
-            <Player device={device} p={p} now={now} />
+            <Player device={device} p={p} now={now} files={files} />
           </Client>
         </div>
       </ScaleBox>
@@ -69,26 +109,27 @@ function StandaloneScreen({ id }) {
 function SignageScene() {
   const s = useStore(); const list = s.devices.filter((d) => d.kind === 'lcd' || d.kind === 'projector');
   const [cur, setCur] = useState(list[0]?.id); const d = sel.device(cur) || list[0];
-  const now = useNow(500);
+  const now = useNow(500); const files = usePreload(playlistFiles(s, list)); useFileIncidents(s, list, files);
   return (
     <div class="ep-signage s-scene fpz-theme" data-theme="light">
       <aside class="s-list">
         <h2>Ekrany LCD i projekcje</h2>
         <p class="s-hint">Odtwarzają playlisty przypisane w „Zarządzaniu ekspozycją”. Kolejność wyliczana z zegara – ekrany z tą samą playlistą grają synchronicznie.</p>
-        <ul>{list.map((x) => { const [pl, tone] = POWER[x.power] || POWER.off; const p = playback(s, x, now.getTime()); return (
+        <ul>{list.map((x) => { const [pl, tone] = POWER[x.power] || POWER.off; const p = playback(s, x, now.getTime(), files); const skip = p.skipped.filter((k) => k.file); return (
           <li key={x.id}><button type="button" class={clsx('s-it', x.id === d?.id && 'is-active')} onClick={() => setCur(x.id)} data-screen={x.id} aria-pressed={x.id === d?.id}>
             <span class="s-it__id">{x.id} · {KIND_PL[x.kind]}</span><b>{x.name}</b>
             <span class="s-it__tags"><Tag tone={tone}>{pl}</Tag>{x.night && <Tag tone="deep" icon="moon">noc</Tag>}{p.live && <Tag tone="live">napisy</Tag>}</span>
             <small><Icon name="playlist" size={13} /> {p.pl ? p.pl.name : 'brak playlisty'}{p.item ? ` · teraz: ${p.item.title}` : ''}</small>
+            {skip.map((k) => <small key={k.item.id} class="s-it__skip" data-skip={k.item.id}><Icon name="alert" size={13} /> {skipText(k)}</small>)}
           </button></li>); })}</ul>
       </aside>
-      {d && <Screen key={d.id} device={d} />}
+      {d && <Screen key={d.id} device={d} files={files} />}
     </div>
   );
 }
 
-function Screen({ device }) {
-  const s = useStore(); const now = useNow(250); const p = playback(s, device, now.getTime());
+function Screen({ device, files }) {
+  const s = useStore(); const now = useNow(250); const p = playback(s, device, now.getTime(), files);
   const proj = device.kind === 'projector';
   return (
     <section class="s-stage" aria-label={device.name}>
@@ -98,7 +139,7 @@ function Screen({ device }) {
             {proj && <div class="s-proj"><Icon name="monitor" size={40} /> projektor laserowy</div>}
             <div class="s-mon__panel" style={{ width: W + 'px', height: H + 'px' }}>
               <Client id={'signage:' + device.id} base={34} class="ep-signage" theme={device.night ? 'night' : undefined}>
-                <Player device={device} p={p} now={now} />
+                <Player device={device} p={p} now={now} files={files} />
               </Client>
             </div>
             {!proj && <><div class="s-mon__logo">FPŻ · {device.id}</div><div class="s-mon__neck" /><div class="s-mon__foot" /></>}
@@ -109,6 +150,7 @@ function Screen({ device }) {
         <span><Icon name="playlist" size={15} /> <b>{p.pl ? p.pl.name : 'Brak przypisanej playlisty'}</b></span>
         <span>Pozycja <b>{p.item ? `${p.idx + 1}/${p.timed.length}` : '–'}</b>{p.item ? ` · ${p.item.title}` : ''}{p.live ? ' · transmisja na żywo (priorytet)' : ''}</span>
         {p.item && !p.live && <span class="s-status__bar"><i style={{ width: `${Math.round(p.progress * 100)}%` }} /></span>}
+        {p.skipped.map((k) => <span key={k.item.id} class="s-status__skip" data-skip={k.item.id}><Icon name="alert" size={15} /> {skipText(k)}</span>)}
         <span><Icon name="clock" size={15} /> <b>{pad2(now.getHours())}:{pad2(now.getMinutes())}:{pad2(now.getSeconds())}</b></span>
         <span>{POWER[device.power]?.[0]} · jasność {device.brightness}%{device.night ? ' · tryb nocny' : ''}</span>
       </div>
@@ -116,7 +158,7 @@ function Screen({ device }) {
   );
 }
 
-function Player({ device, p, now }) {
+function Player({ device, p, now, files }) {
   const s = useStore(); const { t } = useClient();
   const dim = device.brightness != null && device.brightness < 80 ? Math.min(0.75, ((80 - device.brightness) / 80) * 0.8) : 0;
   if (device.power === 'off') return <div class="s-screen s-off" />;
@@ -125,8 +167,8 @@ function Player({ device, p, now }) {
   return (
     <div class={clsx('s-screen', hasTicker && 'has-ticker', it?.type === 'captions' && 'is-captions')}>
       <div class="s-slot">
-        {it ? <div class="s-slide" key={it.id + ':' + p.cycle}><Slide item={it} now={now} /></div>
-          : <div class="s-slide s-empty"><Logo onDark /><p>{t('s.empty')}</p></div>}
+        {it ? <div class="s-slide" key={it.id + ':' + p.cycle}><Slide item={it} now={now} files={files} /></div>
+          : <div class="s-slide s-empty" data-empty={p.nothing ? 'nothing' : 'none'}><Logo onDark /><p>{t(p.nothing ? 's.nothing' : 's.empty')}</p></div>}
       </div>
       {it && it.type !== 'captions' && it.type !== 'video' && <div class="s-corner"><Logo onDark compact /><b>{pad2(now.getHours())}:{pad2(now.getMinutes())}</b></div>}
       {hasTicker && <Ticker items={p.ticker} />}
@@ -138,7 +180,7 @@ function Player({ device, p, now }) {
 
 const Head = ({ k, icon }) => (<header class="s-head"><Icon name={icon} size={52} /><h1>{tr('pl', k)}</h1><span lang="en">{tr('en', k)}</span></header>);
 
-function Slide({ item, now }) {
+function Slide({ item, now, files }) {
   const s = useStore(); const { L } = useClient();
   switch (item.type) {
     case 'events': {
@@ -153,10 +195,13 @@ function Slide({ item, now }) {
         </div></div>);
     }
     case 'video': {
-      // plik wideo prosto z biblioteki mediów („media:<id>”) albo film z CMS
-      if (isMediaRef(item.ref)) { const m = mediaItem(item.ref); return <div class="s-video">{m ? <VideoLoop v={{ id: m.id, src: item.ref, title: { pl: item.title || m.name, en: '' }, durationSec: m.durationSec || item.durationSec || 20, kind: 'studio', captions: [] }} /> : null}<div class="s-video__t"><b>{item.title || m?.name}</b></div></div>; }
-      const v = s.videos.find((x) => x.id === item.ref) || s.videos[0];
-      return <div class="s-video">{v ? <VideoLoop v={v} /> : null}<div class="s-video__t"><b>{v ? v.title.pl : item.title}</b>{v && <span lang="en">{v.title.en}</span>}</div></div>;
+      // plik wideo prosto z biblioteki mediów („media:<id>”) albo film z CMS; plik z biblioteki gra z pamięci ekranu (preload.js)
+      const f = itemVideoFile(s, item); const st = f && files ? files(f.id) : null;
+      if (f && files && (!st || st.state === 'loading')) return <LoadingSlide title={item.title || f.name} progress={st?.progress || 0} />;
+      const url = st?.url;
+      if (isMediaRef(item.ref)) { const m = mediaItem(item.ref); return <div class="s-video">{m ? <VideoLoop file={f} url={url} v={{ id: m.id, src: item.ref, title: { pl: item.title || m.name, en: '' }, durationSec: m.durationSec || item.durationSec || 20, kind: 'studio', captions: [] }} /> : null}<div class="s-video__t"><b>{item.title || m?.name}</b></div></div>; }
+      const v = s.videos.find((x) => x.id === item.ref); if (!v) return null; // pozycje bez filmu pomija playback()
+      return <div class="s-video"><VideoLoop v={v} file={f} url={url} /><div class="s-video__t"><b>{v.title.pl}</b><span lang="en">{v.title.en}</span></div></div>;
     }
     case 'news': {
       const ns = sel.news().slice(0, 3);
@@ -178,9 +223,15 @@ function Slide({ item, now }) {
   }
 }
 
-function VideoLoop({ v }) {
+function VideoLoop({ v, file, url }) {
   const [n, setN] = useState(0);
-  return <VideoSim key={n} video={v} autoplay chromeless loop muted showCaptions showTitle={false} onEnded={() => setN(n + 1)} class="s-vsim" />;
+  return <VideoSim key={n} video={v} autoplay chromeless loop muted showCaptions showTitle={false} onEnded={() => setN(n + 1)} class="s-vsim" {...(file && url ? { fileUrl: url, onFileError: () => markFailed(file.id, 'decode') } : {})} />;
+}
+/** Plansza „Wczytywanie filmu… 43%” – zanim film z biblioteki trafi w całości do pamięci ekranu. */
+function LoadingSlide({ title, progress }) {
+  const pc = Math.round(progress * 100);
+  return (<div class="s-load" data-loading={pc} role="status"><Logo onDark /><p class="s-load__t">{tr('pl', 's.loading')} <b>{pc}%</b></p>
+    <span class="s-load__bar"><i style={{ width: pc + '%' }} /></span><p class="s-load__n">{title}</p></div>);
 }
 
 function CaptionsSlide() {

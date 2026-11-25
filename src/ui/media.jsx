@@ -8,8 +8,8 @@ import { strings } from '../kernel/i18n.js';
 import { clsx, clamp, fmtDuration } from '../kernel/util.js';
 import { speak, stopSpeaking, estimateSeconds } from './speech.js';
 import { Illustration } from './illustrations.jsx';
-import { Icon } from './components.jsx';
-import { mediaItem, mediaUrl } from '../kernel/media.js';
+import { Icon, Tag } from './components.jsx';
+import { mediaItem, mediaUrl, cannotDecode, probeMediaInfo, videoWarnings, codecLabel } from '../kernel/media.js';
 import './media.css';
 
 strings({
@@ -110,12 +110,33 @@ function PjmFigure() {
 export function VideoSim(props) {
   const { t: tr } = useClient(); useStore();
   const v = props.video || {}; const isLive = props.live != null ? !!props.live : (props.kind || v.kind) === 'live';
-  const file = isLive ? null : fileOf('video', props.src, v.src, props.ill, v.ill);
+  let file = isLive ? null : fileOf('video', props.src, v.src, props.ill, v.ill);
+  if (file && props.fileUrl) file = { ...file, url: props.fileUrl }; // ekrany LCD: plik wczytany wcześniej do pamięci (blob:)
   const [failed, setFailed] = useState(null);
-  if (file && failed !== file.url) return <FileVideo key={file.url} {...props} file={file} onFail={() => setFailed(file.url)} />;
+  // kodek, którego ta przeglądarka na pewno nie odtworzy (canPlayType == "") – od razu zastępstwo, bez czarnego odtwarzacza
+  const undecodable = !!file && cannotDecode(file.item);
+  const fail = () => { setFailed(file.url); props.onFileError?.(); };
+  useEffect(() => { if (undecodable) props.onFileError?.(); }, [undecodable, file?.url]);
+  if (file && !undecodable && failed !== file.url) return <FileVideo key={file.url} {...props} file={file} onFail={fail} />;
+  if (file && props.onFileError) return <div class={clsx('md-video md-video--off', props.class)} aria-hidden="true" />; // ekran: bez symulacji w miejscu pliku
   // symulacja: ilustracja zamiast odwołania do pliku wideo (kadr filmu nie wczyta się, skoro plik nie działa)
   const simIll = [props.ill, v.ill].find((x) => x && !(mediaItem(x) && mediaItem(x).type !== 'image')) || 'studio';
-  return <SimVideo {...props} ill={simIll} note={failed ? tr('md.fileErr') : null} />;
+  return <SimVideo {...props} ill={simIll} note={failed || undecodable ? tr('md.fileErr') : null} />;
+}
+/** Kodek i parametry pliku wideo (pola rekordu; dla starszych pozycji – odczyt nagłówka w tle, raz na sesję). */
+export function useVideoInfo(m) {
+  const [info, setInfo] = useState(null); const id = m?.id; const has = !!m?.codec;
+  useEffect(() => { let on = true; if (m && m.type === 'video' && !has) probeMediaInfo(m).then((x) => { if (on) setInfo(x); }); return () => { on = false; }; }, [id, has]);
+  return has ? m : info && info.id === id ? { ...m, ...info } : m;
+}
+/** Znaczniki techniczne pliku wideo: kodek + ostrzeżenia (inny niż H.264, ciężki plik, nieodtwarzalny); hint – także jednozdaniowe podpowiedzi. */
+export function VideoTechTags({ m, hint = false, class: cls }) {
+  const x = useVideoInfo(m); if (!x || x.type !== 'video') return null; const warns = videoWarnings(x);
+  if (!x.codec && !warns.length) return null;
+  return (<span class={clsx('md-tech', cls)} data-testid="video-tech">
+    <span class="md-tech__tags">{x.codec && !warns.some((w) => w.id === 'codec') && <Tag tone="info" icon="film">{codecLabel(x.codec)}</Tag>}{warns.map((w) => <Tag key={w.id} tone={w.tone} icon="alert">{w.tag}</Tag>)}</span>
+    {hint && warns.map((w) => <small key={w.id} class="md-tech__hint" data-warn={w.id}>{w.text}</small>)}
+  </span>);
 }
 /** Pierwsza pozycja biblioteki danego rodzaju wskazana przez którekolwiek z odwołań (id / „media:<id>”) → { item, url } albo null. */
 function fileOf(kind, ...refs) {

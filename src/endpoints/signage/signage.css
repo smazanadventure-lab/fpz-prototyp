@@ -127,3 +127,13 @@
 .ep-signage .s-sa__box > svg { color: var(--c-danger); }
 .ep-signage .s-sa__box h1 { font-size: var(--fs-xl); }
 .ep-signage .s-sa__box ul { display: flex; flex-direction: column; gap: var(--sp-2); }
+/* plansza wczytywania filmu do pamięci ekranu */
+.ep-signage .s-load { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; background: var(--c-deep); color: #fff; --u: 4px; text-align: center; padding: 0 160px; }
+.ep-signage .s-load__t { font-size: var(--fs-lg); margin: 0; }
+.ep-signage .s-load__t b { font-variant-numeric: tabular-nums; }
+.ep-signage .s-load__bar { width: 640px; max-width: 70%; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, .18); overflow: hidden; }
+.ep-signage .s-load__bar i { display: block; height: 100%; background: var(--c-green); transition: width .4s ease; }
+.ep-signage .s-load__n { margin: 0; font-size: var(--fs-md); opacity: .75; }
+/* symulator: pozycje pominięte przez ekran (informacja techniczna – nie na samym ekranie) */
+.ep-signage.s-scene .s-it__skip { display: flex; align-items: flex-start; gap: 4px; color: var(--c-danger); font-size: var(--fs-2xs); line-height: 1.35; }
+.ep-signage.s-scene .s-status > .s-status__skip { color: #FFB4A9; flex-basis: 100%; }

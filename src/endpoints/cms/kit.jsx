@@ -6,7 +6,7 @@ import { useStore, getState } from '../../kernel/store.js';
 import { languages } from '../../kernel/i18n.js';
 import { ROLES } from '../../kernel/api.js';
 import { clsx, deepClone, matches, fmtDateTime, fmtDuration } from '../../kernel/util.js';
-import { uploadMedia, mediaItem, mediaUrl, mediaRef, isMediaRef, MEDIA_ACCEPT, fmtSize } from '../../kernel/media.js';
+import { uploadMedia, mediaItem, mediaUrl, mediaRef, isMediaRef, MEDIA_ACCEPT, fmtSize, videoWarnings } from '../../kernel/media.js';
 import { Icon, Button, IconButton, Modal, Input, Textarea, Select, Switch, Checkbox, SearchInput, Empty, Tag, Notice } from '../../ui/components.jsx';
 import { Illustration, ILLUSTRATION_IDS } from '../../ui/illustrations.jsx';
 
@@ -130,7 +130,7 @@ export function MediaThumb({ m, size, class: cls }) {
 }
 /** Kolejka wgrywania (uploadMedia, pliki po kolei) → { queue, run(files, onItem), clear } */
 export function useUploads() {
-  const { api } = useClient(); const [queue, setQueue] = useState([]);
+  const { api, toast } = useClient(); const [queue, setQueue] = useState([]);
   const upd = (key, p) => setQueue((a) => a.map((x) => (x.key === key ? { ...x, ...p } : x)));
   const run = async (files, onItem) => {
     const list = Array.from(files || []).map((f, i) => ({ key: `${Date.now().toString(36)}-${i}-${f.name}`, f }));
@@ -139,7 +139,7 @@ export function useUploads() {
     for (const { key, f } of list) {
       upd(key, { status: 'up' });
       const r = await uploadMedia(f, { api, onProgress: (p) => upd(key, { p }) });
-      if (r.ok) { upd(key, { status: 'ok', p: 1, id: r.item.id, note: r.item.note }); onItem?.(r.item); } else upd(key, { status: 'err', msg: r.message?.pl || 'Nie udało się wgrać pliku.' });
+      if (r.ok) { const warn = videoWarnings(r.item).map((w) => w.text).join(' '); upd(key, { status: 'ok', p: 1, id: r.item.id, note: r.item.note, warn }); if (warn) toast(`Wgrano „${f.name}”. Uwaga: ${warn}`, 'warn', 7000); onItem?.(r.item); } else upd(key, { status: 'err', msg: r.message?.pl || 'Nie udało się wgrać pliku.' });
       out.push(r);
     }
     return out;
@@ -152,7 +152,7 @@ export function UploadQueue({ queue, onClear }) {
   return (<ul class="c-upq" data-testid="media-queue" aria-live="polite">
     {queue.map((x) => (<li key={x.key} class={`is-${x.status}`} data-status={x.status}>
       <Icon name={{ ok: 'circleCheck', err: 'circleAlert', up: 'upload', wait: 'clock' }[x.status]} size={16} />
-      <span class="c-upq__n"><b>{x.name}</b><small>{x.status === 'err' ? x.msg : x.status === 'ok' ? `Wgrano · ${fmtSize(x.size)}${x.note ? ' · ' + x.note : ''}` : x.status === 'up' ? `Wysyłanie… ${Math.round(x.p * 100)}% · ${fmtSize(x.size)}` : 'W kolejce'}</small></span>
+      <span class="c-upq__n"><b>{x.name}</b><small>{x.status === 'err' ? x.msg : x.status === 'ok' ? `Wgrano · ${fmtSize(x.size)}${x.note ? ' · ' + x.note : ''}` : x.status === 'up' ? `Wysyłanie… ${Math.round(x.p * 100)}% · ${fmtSize(x.size)}` : 'W kolejce'}</small>{x.status === 'ok' && x.warn && <small class="c-upq__warn" data-testid="media-queue-warn">Uwaga: {x.warn}</small>}</span>
       {x.status !== 'err' && <span class="c-upq__bar" role="progressbar" aria-label={x.name} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(x.p * 100)}><i style={{ width: `${Math.round(x.p * 100)}%` }} /></span>}
     </li>))}
     {!busy && onClear && <li class="c-upq__clr"><Button size="sm" variant="ghost" icon="close" onClick={onClear}>Wyczyść listę</Button></li>}
