@@ -13,6 +13,8 @@ export function fileStorage(file) {
     async del(key) { try { fs.unlinkSync(pathOf(key)); } catch { /* nie było */ } },
     async putJSON(key, obj) { fs.writeFileSync(pathOf(key), JSON.stringify(obj)); },
     async getJSON(key) { try { return JSON.parse(fs.readFileSync(pathOf(key), 'utf8')); } catch { return null; } },
+    /** Klucze zaczynające się od prefiksu zakończonego „/” (jeden poziom katalogu). */
+    async list(prefix) { const d = path.join(dir, prefix.replace(/[^A-Za-z0-9._/-]/g, '_')); try { return fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isFile() ? [prefix + e.name] : e.isDirectory() ? fs.readdirSync(path.join(d, e.name)).map((n) => `${prefix}${e.name}/${n}`) : [])); } catch { return []; } },
   };
   return {
     files,

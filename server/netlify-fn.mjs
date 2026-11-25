@@ -16,6 +16,7 @@ function blobStorage() {
     async del(key) { await media.delete(key); },
     async putJSON(key, obj) { await media.setJSON(key, obj); },
     async getJSON(key) { return (await media.get(key, { type: 'json' })) || null; },
+    async list(prefix) { const r = await media.list({ prefix }); return (r.blobs || []).map((b) => b.key); },
   };
   return {
     files,

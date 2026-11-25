@@ -5,6 +5,7 @@ import { setState } from '../src/kernel/store.js';
 import { makeSeed, defaultPlayer, SEED_SCHEMA, BACKOFFICE_KEYS } from '../src/kernel/seed.js';
 import { runOp, applySchedules, SHARED_ENV_KEYS } from '../src/kernel/api.js';
 import { createPayRoutes, payInfo, blocksSimulatedPay } from './pay-routes.mjs';
+import { createLiveRoutes } from './live-routes.mjs';
 
 try { process.env.TZ = 'Europe/Warsaw'; } catch { /* daty lokalne liczone w czasie serwera */ }
 
@@ -133,6 +134,7 @@ export function createHandler(getStorage) {
   }
 
   const payRoute = createPayRoutes({ load, mutate, compose, decompose, json });
+  const liveRoute = createLiveRoutes({ json });
 
   return async function handle(request) {
     const url = new URL(request.url); const route = url.pathname.replace(/^.*\/api\//, '').replace(/\/+$/, '');
@@ -178,6 +180,8 @@ export function createHandler(getStorage) {
       }
       /* ── płatności Tpay ── */
       { const pr = await payRoute(route, request, url, q, storage, cors); if (pr) return pr; }
+      /* ── transmisja z kamery (sygnalizacja WebRTC) ── */
+      { const lr = await liveRoute(route, request, url, q, storage, cors); if (lr) return lr; }
       /* ── pliki multimedialne ── */
       const mm = route.match(/^media\/([^/]+)$/);
       if (mm) {

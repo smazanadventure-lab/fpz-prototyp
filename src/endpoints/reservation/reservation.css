@@ -193,6 +193,30 @@
 .ep-res .r-bank { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); border-radius: var(--r-lg); background: var(--c-surface-2); box-shadow: var(--shadow-1); animation: r-in .2s ease; }
 .ep-res .r-bank__head { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--c-text-2); }
 .ep-res .r-bank p { font-weight: 700; }
+/* ── płatność przez Tpay (strona operatora poza aplikacją) ── */
+.ep-res .r-tpnote p { display: flex; align-items: flex-start; gap: var(--sp-2); margin-top: calc(var(--u) * 6); padding: var(--sp-3); border-radius: var(--r-md); background: var(--c-surface-2); font-size: var(--fs-sm); }
+.ep-res .r-tpnote .fpz-icon { color: var(--c-accent); flex: none; margin-top: calc(var(--u) * 1); }
+.ep-res .r-tp { max-width: calc(var(--u) * 560); width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-4); }
+.ep-res .r-tp__head { display: flex; align-items: center; gap: var(--sp-3); }
+.ep-res .r-tp__titles { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--u) * 6) var(--sp-3); }
+.ep-res .r-tp > .r-actions { flex-direction: column-reverse; align-items: stretch; }
+.ep-res .r-tp__row { display: flex; flex-direction: column; gap: var(--sp-2); }
+.ep-res .r-tp__ic { display: inline-flex; align-items: center; justify-content: center; width: calc(var(--u) * 40); height: calc(var(--u) * 40); border-radius: 50%; background: var(--c-surface-2); color: var(--c-accent); flex: none; }
+.ep-res .r-tp__lead { font-size: var(--fs-sm); }
+.ep-res .r-tp__methods { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.ep-res .r-tp__methods li { display: inline-flex; align-items: center; gap: calc(var(--u) * 6); padding: calc(var(--u) * 6) var(--sp-3); border-radius: 999px; box-shadow: inset 0 0 0 calc(var(--u) * 1.25) var(--c-line); font-size: var(--fs-xs); font-weight: 700; }
+.ep-res .r-tp__methods .fpz-icon { color: var(--c-accent); }
+.ep-res .r-tp__wait { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-4); border-radius: var(--r-md); background: var(--c-surface-2); }
+.ep-res .r-tp__wait .fpz-spinner { flex: none; }
+.ep-res .r-tp__waittxt { display: flex; flex-direction: column; gap: calc(var(--u) * 4); font-size: var(--fs-sm); }
+.ep-res .r-tp__waittxt b { font-size: var(--fs-md); outline-offset: calc(var(--u) * 3); }
+.ep-res .r-tp a.fpz-btn { text-decoration: none; }
+@container res (min-width: 560px) {
+  .ep-res .r-tp > .r-actions { flex-direction: row; align-items: center; }
+  .ep-res .r-tp__row { flex-direction: row; }
+  .ep-res .r-tp__row > a { flex: 1; }
+}
+@container res (min-width: 900px) { .ep-res .r-tp { margin-top: var(--sp-4); } }
 .ep-res .r-fail { display: flex; align-items: center; gap: var(--sp-2); color: var(--c-danger); font-size: var(--fs-lg); }
 
 /* ── zamówienia i bilety ── */

@@ -65,12 +65,17 @@ export function SiteData() {
 const METHODS = [['blik', 'BLIK'], ['card', 'Karta płatnicza'], ['transfer', 'Szybki przelew (pay-by-link)'], ['applepay', 'Apple Pay'], ['googlepay', 'Google Pay']];
 export function Payments() {
   const s = useStore(); const { api } = useClient(); const run = useRun(); const [d, setD] = useState(deepClone(s.settings.payments));
+  const net = s.net || {}; const pay = net.pay; const tpay = pay?.provider === 'tpay';
+  const opLine = tpay ? `Operator na serwerze: Tpay – ${pay.env === 'production' ? 'produkcja (prawdziwe płatności)' : pay.env === 'sandbox' ? 'środowisko testowe (sandbox)' : 'atrapa testowa'}`
+    : net.mode === 'remote' ? 'Płatność symulowana – na serwerze nie ustawiono kluczy Tpay' : 'Płatność symulowana – wersja bez serwera';
   return (<div class="c-page"><Head title="Płatności" sub="Integracja z zewnętrznym operatorem płatności (wybór Zamawiającego) – PSD2/SCA" />
     <section class="c-panel">
+      <Notice tone={tpay ? (pay.env === 'production' ? 'ok' : 'info') : 'warn'} icon="shield"><b>{opLine}</b>{tpay && '. Klient wybiera metodę (BLIK, karta, przelew) na stronie Tpay – poniższa nazwa operatora i lista metod nie są wtedy używane.'}</Notice>
       <Field label="Nazwa operatora (wyświetlana klientom)"><Input value={d.operator} onInput={(e) => setD({ ...d, operator: e.currentTarget.value })} /></Field>
       <FieldBox label="Włączone metody płatności"><div class="c-checks">{METHODS.map(([id, l]) => <Checkbox key={id} label={l} checked={d.methods.includes(id)} onChange={(e) => setD({ ...d, methods: e.currentTarget.checked ? [...d.methods, id] : d.methods.filter((x) => x !== id) })} />)}</div></FieldBox>
       <div class="c-row"><Button size="sm" icon="save" disabled={!d.methods.length} onClick={() => run(api.cms.setSetting({ payments: d }), 'Zapisano ustawienia płatności')}>Zapisz</Button>{!d.methods.length && <span class="c-danger c-small">Wybierz co najmniej jedną metodę.</span>}</div>
-      <Notice tone="warn">Środowisko testowe (sandbox) – płatności są symulowane, z krokiem silnego uwierzytelnienia (SCA). Klucze API operatora konfiguruje się w wersji docelowej po stronie serwera, nie w przeglądarce.</Notice>
+      {tpay ? <p class="c-small">Klucze API Tpay są ustawione po stronie serwera (zmienne środowiskowe), nie w przeglądarce.</p>
+        : <Notice tone="warn">Środowisko testowe (sandbox) – płatności są symulowane, z krokiem silnego uwierzytelnienia (SCA). Klucze API operatora konfiguruje się w wersji docelowej po stronie serwera, nie w przeglądarce.</Notice>}
     </section></div>);
 }
 

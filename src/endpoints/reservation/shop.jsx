@@ -1,8 +1,10 @@
 // Koszyk, kasa, bramka operatora płatności (środowisko testowe, SCA), potwierdzenie zamówienia.
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useClient } from '../../kernel/client.jsx';
 import { sel } from '../../kernel/api.js';
 import { getState } from '../../kernel/store.js';
+import { payProvider, payEnv, startPayment, paymentStatus, refreshNow } from '../../kernel/pay.js';
+import { isNative } from '../../shell/native.js';
 import { fmtDay, fmtTime, fmtMoney, fmtDateTime, clsx } from '../../kernel/util.js';
 import { Button, IconButton, Tag, Empty, Notice, Icon, Checkbox, Modal, Progress } from '../../ui/components.jsx';
 import { useRes, Stepper, TicketCard, AuthPanel, OrderStatus } from './common.jsx';
@@ -75,7 +77,7 @@ export function CartAside() {
 /* ───────── Kasa ───────── */
 export function CheckoutView() {
   const { t, L, lang, client, api, user, toast } = useClient(); const { go, replace, offline, announce } = useRes();
-  const methods = getState().settings.payments.methods || ['blik'];
+  const methods = getState().settings.payments.methods || ['blik']; const tpay = payProvider() === 'tpay';
   const [method, setMethod] = useState(methods[0]); const [terms, setTerms] = useState(false); const [err, setErr] = useState('');
   const cart = sel.cart(client);
   if (!cart.items.length) return <Empty icon="cart" title={t('r.cart.empty')}><Button onClick={() => go('events')}>{t('r.home.allEvents')}</Button></Empty>;
@@ -96,9 +98,11 @@ export function CheckoutView() {
         {!user ? <><Notice tone="info" icon="user">{t('r.co.loginFirst')}</Notice><AuthPanel /></> : (
           <form class="r-form" onSubmit={submit} noValidate>
             <div class="r-buyer"><Icon name="user" size={20} /><div><b>{user.name}</b><span>{user.email}</span>{user.phone && <span>{user.phone}</span>}</div><Button variant="ghost" size="sm" icon="edit" onClick={() => go('account')}>{t('r.co.editProfile')}</Button></div>
-            <fieldset class="r-methods"><legend class="r-label">{t('r.co.method')}</legend>
-              {methods.map((m) => <label key={m} class={clsx('r-method', method === m && 'is-sel')}><input type="radio" name="method" value={m} checked={method === m} onChange={() => setMethod(m)} /><Icon name={METHOD_ICON[m] || 'wallet'} size={20} /><span>{t('r.m.' + m)}</span></label>)}
-            </fieldset>
+            {tpay ? <div class="r-tpnote"><span class="r-label">{t('r.co.method')}</span><p><Icon name="shield" size={18} /><span>{t('r.co.tpayNote')}</span></p></div> : (
+              <fieldset class="r-methods"><legend class="r-label">{t('r.co.method')}</legend>
+                {methods.map((m) => <label key={m} class={clsx('r-method', method === m && 'is-sel')}><input type="radio" name="method" value={m} checked={method === m} onChange={() => setMethod(m)} /><Icon name={METHOD_ICON[m] || 'wallet'} size={20} /><span>{t('r.m.' + m)}</span></label>)}
+              </fieldset>
+            )}
             <Checkbox name="terms" label={t('r.co.terms')} checked={terms} onChange={(e) => { setTerms(e.currentTarget.checked); setErr(''); }} />
             <p class="r-prod__small">{t('r.co.mailInfo', { email: user.email })}</p>
             {err && <Notice tone="danger">{err}</Notice>}
@@ -111,8 +115,11 @@ export function CheckoutView() {
   );
 }
 
+/* ───────── Płatność: Tpay (gdy serwer ma włączony Tpay) albo symulowana bramka operatora ───────── */
+export function PayView(props) { return payProvider() === 'tpay' ? <TpayView {...props} /> : <SimPayView {...props} />; }
+
 /* ───────── Bramka operatora płatności (symulacja zewnętrznego serwisu) ───────── */
-export function PayView({ id, p }) {
+function SimPayView({ id, p }) {
   const { t, L, lang, api, toast, user } = useClient(); const { replace, reset, go, offline, announce } = useRes();
   const o = sel.order(id); const op = getState().settings.payments; const methods = op.methods || ['blik'];
   const [method, setMethod] = useState(p?.method || methods[0]); const [step, setStep] = useState('method'); const [card, setCard] = useState(TEST_CARDS[0].id); const [bank, setBank] = useState(TEST_BANKS[0]);
@@ -160,6 +167,131 @@ export function PayView({ id, p }) {
     </div>
   );
 }
+/* ───────── Płatność przez Tpay: strona operatora w nowej karcie (WWW) albo w przeglądarce systemowej (APK) ───────── */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function TpayView({ id }) {
+  const { t, L, lang, api, toast } = useClient(); const { replace, reset, offline, announce } = useRes();
+  const o = sel.order(id); const env = payEnv(); const test = env !== 'production'; const native = isNative();
+  const resumable = !!(o && o.status === 'pending' && o.payment?.provider === 'tpay' && o.payment.pending && o.payment.url);
+  const [phase, setPhase] = useState(resumable ? 'wait' : 'intro'); // intro → wait → done
+  const [url, setUrl] = useState(resumable ? o.payment.url : null);
+  const [busy, setBusy] = useState(false); const [checking, setChecking] = useState(false);
+  const [err, setErr] = useState(''); const [blocked, setBlocked] = useState(false); const [note, setNote] = useState('');
+  const wasPending = useRef(o?.status === 'pending'); // zamówienie czekało na płatność, gdy widok się otworzył
+  const alive = useRef(true); const done = useRef(false); const inFlight = useRef(false); const off = useRef(offline); off.current = offline;
+  const waitRef = useRef(null);
+  useEffect(() => () => { alive.current = false; }, []);
+
+  /** Zapłacone: czekamy, aż zamówienie i bilety dotrą do lokalnego stanu, potem ekran zamówienia. */
+  const paid = async () => {
+    if (done.current) return; done.current = true; setPhase('done'); announce(t('r.tp.confirmed'));
+    const t0 = Date.now();
+    while (alive.current && sel.order(id)?.status !== 'paid' && Date.now() - t0 < 20000) { refreshNow(); await sleep(600); }
+    if (!alive.current) return;
+    api.booking.clearCart(); toast(t('r.ok.title'), 'ok'); announce(t('r.ok.title'));
+    reset([{ view: 'home' }, { view: 'tickets', p: { tab: 'orders' } }, { view: 'order', id, p: { fresh: true } }]);
+  };
+  const check = async (manual) => {
+    if (done.current || inFlight.current || off.current) return; inFlight.current = true; if (manual) { setChecking(true); setNote(''); }
+    const r = await paymentStatus(id); inFlight.current = false;
+    if (!alive.current || done.current) return; if (manual) setChecking(false);
+    if (r?.ok && r.status === 'paid') return paid();
+    if (r?.ok && r.status !== 'pending') { refreshNow(); return; } // anulowane/zwrócone – widok pokaże stan zamówienia po synchronizacji
+    if (r?.ok && r.url) setUrl(r.url);
+    if (manual) { const m = r?.ok ? t('r.tp.stillPending') : L(r?.message) || t('r.tp.error'); setNote(m); announce(m); }
+  };
+  // zamówienie opłacone w stanie lokalnym (np. synchronizacja przyszła przed odpytywaniem)
+  useEffect(() => { if (o?.status === 'paid' && wasPending.current) paid(); }, [o?.status]);
+  // odpytywanie co 3 s i od razu po powrocie do karty / aplikacji
+  useEffect(() => {
+    if (phase !== 'wait') return;
+    const iv = setInterval(() => check(false), 3000);
+    const vis = () => { if (!document.hidden) check(false); };
+    document.addEventListener('visibilitychange', vis); window.addEventListener('focus', vis);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', vis); window.removeEventListener('focus', vis); };
+  }, [phase]);
+  // płatność rozpoczęta wcześniej (np. na innym urządzeniu) dotarła z synchronizacją – od razu stan oczekiwania
+  useEffect(() => { if (phase === 'intro' && !busy && resumable) { setUrl(o.payment.url); setPhase('wait'); } }, [resumable]);
+  // fokus nie ginie, gdy znikają przyciski ekranu wstępnego (przenosimy go tylko, gdy był w tym widoku albo nigdzie)
+  useEffect(() => { const a = document.activeElement; if (phase === 'wait' && (!a || a === document.body || a.closest?.('.r-tp'))) waitRef.current?.focus({ preventScroll: true }); }, [phase]);
+
+  const start = async (fresh) => {
+    if (busy || off.current || done.current) return;
+    setErr(''); setNote(''); setBlocked(false);
+    // nowa karta otwierana od razu w obsłudze kliknięcia – inaczej przeglądarka ją zablokuje; w APK nie (pusta strona zastąpiłaby aplikację)
+    let w = null;
+    if (!native) {
+      try { w = window.open('', '_blank'); } catch { w = null; }
+      if (w) { try { w.document.title = 'Tpay'; const pEl = w.document.createElement('p'); pEl.textContent = t('r.tp.tabText'); pEl.style.cssText = 'font:18px system-ui,sans-serif;margin:40px auto;max-width:440px;padding:0 16px;color:#333'; w.document.body.appendChild(pEl); } catch { /* nic */ } try { w.opener = null; } catch { /* nic */ } }
+    }
+    setBusy(true);
+    const r = await startPayment(id, { lang, fresh: !!fresh, native });
+    if (!alive.current) { try { w?.close(); } catch { /* nic */ } return; }
+    setBusy(false);
+    if (!r?.ok) {
+      try { w?.close(); } catch { /* nic */ }
+      const m = L(r?.message) || t('r.tp.error'); setErr(m); announce(m); if (r?.error === 'STATE') refreshNow(); return;
+    }
+    if (r.paid) { try { w?.close(); } catch { /* nic */ } return paid(); }
+    setUrl(r.url);
+    if (native) window.location.href = r.url; // Capacitor otwiera adresy zewnętrzne w przeglądarce systemowej, aplikacja zostaje na miejscu
+    else if (w && !w.closed) w.location.href = r.url;
+    else setBlocked(true);
+    if (phase === 'wait') { announce(t('r.tp.waitTitle')); waitRef.current?.focus({ preventScroll: true }); } else setPhase('wait');
+  };
+  const cancel = () => { const r = api.booking.cancel(id); if (r.ok) { done.current = true; toast(t('r.o.cancelled.ok'), 'info'); reset([{ view: 'home' }, { view: 'tickets', p: { tab: 'orders' } }]); } else toast(L(r.message), 'error'); };
+
+  if (!o) return <Empty icon="receipt" title={t('c.empty')} />;
+  const confirming = phase === 'done' || (o.status === 'paid' && wasPending.current);
+  if (!confirming && o.status !== 'pending') return <div class="r-narrow r-stack"><Notice tone="info">{t('r.pay.notPending')}</Notice><Button onClick={() => replace('order', o.id)}>{t('r.nav.order')} {o.no}</Button></div>;
+  const linkTarget = native ? {} : { target: '_blank', rel: 'noopener' };
+  return (
+    <section class="r-tp r-panel" aria-labelledby="r-tp-h">
+      <div class="r-tp__head">
+        <span class="r-tp__ic" aria-hidden="true"><Icon name="shield" size={22} /></span>
+        <div class="r-tp__titles"><h2 class="r-h3" id="r-tp-h">{t('r.tp.title')}</h2>{test && <Tag tone="warn">{t('r.tp.testTag')}</Tag>}</div>
+      </div>
+      <dl class="r-gw__sum">
+        <div><dt>{t('r.pay.merchant')}</dt><dd>Fabryka Pełna Życia</dd></div>
+        <div><dt>{t('r.pay.orderNo')}</dt><dd>{o.no}</dd></div>
+        <div><dt>{t('r.pay.amount')}</dt><dd class="r-gw__amt">{fmtMoney(o.total, lang)}</dd></div>
+      </dl>
+      {test && <Notice tone="warn" icon="alert">{t('r.tp.testNote')}</Notice>}
+      {confirming ? <div class="r-center" role="status"><div class="fpz-spinner" /><span>{t('r.tp.confirmed')}</span></div> : phase === 'intro' ? <>
+        <p class="r-tp__lead">{t('r.tp.lead')}</p>
+        <ul class="r-tp__methods" aria-label={t('r.co.method')}>{['blik', 'card', 'transfer'].map((m) => <li key={m}><Icon name={METHOD_ICON[m]} size={16} />{t('r.m.' + m)}</li>)}</ul>
+        <p class="r-prod__small">{t(native ? 'r.tp.howApp' : 'r.tp.howWeb')}</p>
+        {err && <div role="alert"><Notice tone="danger">{err}</Notice></div>}
+        {offline && <Notice tone="warn" icon="wifiOff">{t('r.off.blocked')}</Notice>}
+        <div class="r-actions">
+          <Button variant="secondary" icon="close" onClick={cancel} disabled={busy}>{t('r.pay.cancelOrder')}</Button>
+          <Button icon={busy ? null : 'shield'} size="lg" onClick={() => start(false)} disabled={offline} aria-disabled={busy ? 'true' : undefined} aria-busy={busy ? 'true' : undefined} data-testid="r-tp-pay">{busy ? t('r.tp.starting') : t('r.tp.pay')}</Button>
+        </div>
+      </> : <>
+        <div class="r-tp__wait">
+          <div class="fpz-spinner" aria-hidden="true" />
+          <div role="status" aria-live="polite" class="r-tp__waittxt">
+            <b tabIndex={-1} ref={waitRef}>{t('r.tp.waitTitle')}</b>
+            <span>{t('r.tp.waitText')}</span>
+          </div>
+        </div>
+        {blocked && <Notice tone="info" icon="external">{t('r.tp.blocked')}</Notice>}
+        <div class="r-tp__row">
+          {url && <a class="fpz-btn fpz-btn--primary" href={url} {...linkTarget} data-testid="r-tp-link"><Icon name="external" size={18} />{t('r.tp.reopen')}</a>}
+          <Button variant="secondary" icon="check" onClick={() => check(true)} disabled={offline} aria-disabled={checking ? 'true' : undefined} aria-busy={checking ? 'true' : undefined}>{t('r.tp.checkNow')}</Button>
+        </div>
+        {note && <p class="r-prod__small">{note}</p>}
+        {err && <div role="alert"><Notice tone="danger">{err}</Notice></div>}
+        {offline && <Notice tone="warn" icon="wifiOff">{t('r.off.blocked')}</Notice>}
+        <p class="r-prod__small">{t('r.tp.retryInfo')}</p>
+        <div class="r-actions">
+          <Button variant="ghost" icon="close" onClick={cancel} disabled={busy}>{t('r.pay.cancelOrder')}</Button>
+          <Button variant="secondary" icon="refresh" onClick={() => start(true)} disabled={offline} aria-disabled={busy ? 'true' : undefined} aria-busy={busy ? 'true' : undefined}>{busy ? t('r.tp.starting') : t('r.tp.retry')}</Button>
+        </div>
+      </>}
+    </section>
+  );
+}
 function Sca({ o, onResult }) {
   const { t, lang } = useClient(); const [phase, setPhase] = useState('wait'); const [left, setLeft] = useState(60);
   useEffect(() => { const a = setTimeout(() => setPhase('ask'), 1500); return () => clearTimeout(a); }, []);
@@ -182,6 +314,13 @@ function Sca({ o, onResult }) {
 }
 
 /* ───────── Zamówienie / potwierdzenie ───────── */
+/** Opis płatności zamówienia: Tpay – operator i tytuł transakcji Tpay; płatność symulowana – metoda, operator, numer. */
+function payLine(o, t) {
+  const p = o.payment;
+  if (p.provider === 'free') return t('r.m.free');
+  if (p.provider === 'tpay') return t(o.status === 'paid' || o.status === 'refunded' ? 'r.o.paidTpay' : 'r.o.startedTpay', { op: p.operator || t('r.m.tpay'), tx: p.title || p.txId || '—' });
+  return `${t('r.o.method', { m: t('r.m.' + p.method), op: p.operator })} · ${p.txId}`;
+}
 export function OrderView({ id, p }) {
   const { t, L, lang, api, toast } = useClient(); const { go, replace, offline, sheet, announce } = useRes(); const [ask, setAsk] = useState(false);
   const o = sel.order(id); if (!o) return <Empty icon="receipt" title={t('c.empty')} />;
@@ -196,7 +335,7 @@ export function OrderView({ id, p }) {
         <span class="r-muted">{t('r.o.created', { d: fmtDateTime(o.createdAt, lang) })} · {t('r.o.via', { c: t('r.o.channel.' + (o.channel === 'web' ? 'web' : 'mobile')) })}</span>
         <ul class="r-mini">{o.items.map((it, i) => { const ev = it.eventId && sel.event(it.eventId); return <li key={i}><span>{it.qty} × {L(it.name)}{ev ? ` – ${L(ev.title)}` : ''}</span><b>{fmtMoney(it.unitPrice * it.qty, lang)}</b></li>; })}</ul>
         <div class="r-total r-total--sm"><span>{t('r.cart.total')}</span><b>{fmtMoney(o.total, lang)}</b></div>
-        {o.payment && !o.payment.failed && <span class="r-prod__small">{t('r.o.method', { m: t('r.m.' + o.payment.method), op: o.payment.operator })} · {o.payment.txId}</span>}
+        {o.payment && !o.payment.failed && <span class="r-prod__small">{payLine(o, t)}</span>}
         {o.status === 'pending' && <div class="r-actions"><Button variant="secondary" icon="close" onClick={cancel}>{t('r.pay.cancelOrder')}</Button><Button icon="wallet" disabled={offline} onClick={() => go('pay', o.id)}>{t('r.o.finish')}</Button></div>}
         {o.status === 'paid' && <div class="r-refund">
           <span class="r-label">{t('r.o.refundTerms')}</span>

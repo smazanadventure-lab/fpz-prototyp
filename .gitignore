@@ -16,3 +16,7 @@ android/.idea/
 # dane lokalnego serwera testowego i moduł funkcji generowany przy budowaniu
 .data/
 server/build/
+
+# katalogi robocze testów
+.tmp-*/
+.data/

@@ -219,8 +219,11 @@ const ADMIN_OPS = globalThis.FPZ_APP_ONLY ? [] : [
     t.status = 'used'; t.usedAt = nowIso(); t.gate = gate; return rec({ ok: true, kind: 'ticket', ticket: t, label, message: L('Bilet ważny – zapraszamy.', 'Valid ticket – welcome.') });
   }],
   /* ── transmisje, napisy na żywo, tłumacz PJM ── */
-  ['live.start', 'POST', '/live/start', (ctx, title) => { const l = ctx.s.live; l.onAir = true; l.startedAt = nowIso(); l.captions = []; l.viewers = 12; if (title) l.title = typeof title === 'string' ? { pl: title, en: title } : title; outbox(ctx.s, 'push', 'all', 'Transmisja na żywo', l.title.pl); return ok(); }],
-  ['live.stop', 'POST', '/live/stop', (ctx) => { ctx.s.live.onAir = false; return ok(); }],
+  /** Start transmisji. opts.streamId – transmisja z kamery telefonu (obraz przez WebRTC, src/kernel/rtc.js); bez niego – transmisja symulowana. */
+  ['live.start', 'POST', '/live/start', (ctx, title, opts) => { const l = ctx.s.live; const cam = opts && typeof opts.streamId === 'string' && /^[a-z0-9]{8,32}$/.test(opts.streamId) ? opts.streamId : null; l.onAir = true; l.startedAt = nowIso(); l.captions = []; l.streamId = cam; l.source = cam ? 'camera' : 'studio'; l.viewers = cam ? 0 : 12; if (title) l.title = typeof title === 'string' ? { pl: title, en: title } : title; outbox(ctx.s, 'push', 'all', 'Transmisja na żywo', l.title.pl); return ok(); }],
+  ['live.stop', 'POST', '/live/stop', (ctx) => { const l = ctx.s.live; l.onAir = false; l.streamId = null; l.source = null; return ok(); }],
+  /** Liczba odbiorców połączonych z kamerą nadawcy (zgłasza strona nadawania). */
+  ['live.viewers', 'PATCH', '/live/viewers', (ctx, n) => { const l = ctx.s.live; if (l.onAir && l.streamId) l.viewers = clamp(Math.round(+n) || 0, 0, 99); return ok(); }, { quiet: true }],
   ['live.caption', 'POST', '/live/captions', (ctx, text) => { const t = String(text || '').trim(); if (!t) return fail('VALIDATION', 'Pusty tekst.', 'Empty text.'); const c = ctx.s.live.captions; c.push({ id: uid('cap'), at: nowIso(), text: t }); if (c.length > 60) c.splice(0, c.length - 60); return ok(); }, { quiet: true }],
   ['live.clear', 'DELETE', '/live/captions', (ctx) => { ctx.s.live.captions = []; return ok(); }],
   /* ── personel: logowanie do CMS / systemu zarządzania / stanowiska bileterskiego ── */
