@@ -11,6 +11,10 @@ import { mediaItem, mediaRef, isMediaRef } from '../../kernel/media.js';
 const hasFile = (v) => !!(v?.src && mediaItem(v.src)) && v.kind !== 'live';
 const videoDur = (v) => (hasFile(v) && (v.durationSec || mediaItem(v.src)?.durationSec)) || 20;
 /** Obraz pozycji: zdjęcie z biblioteki mediów („media:<id>”) albo ilustracja systemowa. */
+/** Film pozycji: plik wideo prosto z biblioteki mediów („media:<id>”) albo rekord filmu z CMS (z plikiem lub symulowany). */
+const libVideos = (s) => s.media.filter((m) => m.type === 'video');
+const videoOpts = (s) => [...libVideos(s).map((m) => ({ id: mediaRef(m.id), label: `Plik z biblioteki: ${m.name}${m.durationSec ? ' (' + m.durationSec + ' s)' : ''}` })), ...s.videos.map((v) => ({ id: v.id, label: `Film: ${v.title.pl}${v.kind === 'archive' ? ' (archiwalny)' : v.kind === 'live' ? ' (transmisja na żywo)' : ''}${v.kind === 'live' ? '' : hasFile(v) ? ' · plik wideo' : ' · symulacja'}` }))];
+const videoPatch = (s, ref, it) => { if (isMediaRef(ref)) { const m = mediaItem(ref); return { ref, title: m?.alt?.pl || m?.name || it?.title || 'Film', ...(m?.durationSec ? { durationSec: m.durationSec } : {}) }; } const v = s.videos.find((x) => x.id === ref); return { ref: v?.id, title: v?.title.pl || it?.title || 'Film', ...(hasFile(v) ? { durationSec: videoDur(v) } : {}) }; };
 const imageOpts = (s) => [...s.media.filter((m) => m.type === 'image').map((m) => ({ id: mediaRef(m.id), label: 'Zdjęcie: ' + m.name })), ...ILLUSTRATION_IDS.map((x) => ({ id: x, label: 'Ilustracja: ' + x }))];
 import { useX, useTick, ITEM_TYPES, KINDS, PowerBadge, Head, Panel, zoneName, DISPLAY_KINDS } from './common.jsx';
 
@@ -51,7 +55,7 @@ function Editor({ pl, onDelete }) {
   const move = (i, dir) => { const a = pl.items.slice(); const j = i + dir; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; save(a); };
   const add = () => {
     const base = { id: uid('pi'), type: addType, title: ITEM_TYPES[addType].label, durationSec: ['ticker', 'captions'].includes(addType) ? 0 : 10 };
-    if (addType === 'video') { const v = s.videos.find(hasFile) || s.videos[0]; Object.assign(base, { ref: v?.id, title: v?.title.pl || 'Film', durationSec: videoDur(v) }); }
+    if (addType === 'video') { const m = libVideos(s).slice(-1)[0]; const v = s.videos.find(hasFile) || s.videos.find((x) => x.kind !== 'live') || s.videos[0]; Object.assign(base, { durationSec: 20 }, m ? videoPatch(s, mediaRef(m.id)) : { ref: v?.id, title: v?.title.pl || 'Film', durationSec: videoDur(v) }); } // najnowszy plik z biblioteki, a gdy jej nie ma – film z CMS
     if (addType === 'image') { const m = s.media.filter((x) => x.type === 'image').slice(-1)[0]; Object.assign(base, m ? { ref: mediaRef(m.id), title: m.alt?.pl || m.name } : { ref: ILLUSTRATION_IDS[0], title: 'Ilustracja' }); }
     if (addType === 'ticker') base.text = 'Nowy komunikat paska informacyjnego';
     if (addType === 'rss') Object.assign(base, { url: 'https://www.dabrowa-gornicza.pl/rss', title: 'Kanał RSS – aktualności miasta' });
@@ -78,8 +82,8 @@ function Editor({ pl, onDelete }) {
             <Select value={it.type} disabled={!ok} aria-label="Rodzaj pozycji" onChange={(e) => patch(i, { type: e.currentTarget.value })} options={Object.entries(ITEM_TYPES).map(([k, v]) => ({ id: k, label: v.label }))} />
             <Input value={it.title} disabled={!ok} aria-label="Tytuł pozycji" onChange={(e) => patch(i, { title: e.currentTarget.value })} />
           </div>
-          {it.type === 'video' && <div class="x-item__row"><Select value={it.ref || ''} disabled={!ok} aria-label="Film" onChange={(e) => { const v = s.videos.find((x) => x.id === e.currentTarget.value); patch(i, { ref: v?.id, title: v?.title.pl || it.title, ...(hasFile(v) ? { durationSec: videoDur(v) } : {}) }); }} options={s.videos.map((v) => ({ id: v.id, label: `${v.title.pl}${v.kind === 'archive' ? ' (archiwalny)' : ''}${hasFile(v) ? ' · plik wideo' : ' · symulacja'}` }))} />
-            {hasFile(s.videos.find((v) => v.id === it.ref)) ? <Tag tone="green" icon="film">plik wideo</Tag> : <Tag tone="warn">symulacja</Tag>}</div>}
+          {it.type === 'video' && <div class="x-item__row"><Select value={it.ref || ''} disabled={!ok} aria-label="Film" onChange={(e) => patch(i, videoPatch(s, e.currentTarget.value, it))} options={videoOpts(s)} />
+            {isMediaRef(it.ref) ? (mediaItem(it.ref) ? <Tag tone="green" icon="film">plik wideo</Tag> : <Tag tone="warn">plik usunięty</Tag>) : s.videos.find((v) => v.id === it.ref)?.kind === 'live' ? <Tag tone="live">na żywo</Tag> : hasFile(s.videos.find((v) => v.id === it.ref)) ? <Tag tone="green" icon="film">plik wideo</Tag> : <Tag tone="warn">symulacja</Tag>}</div>}
           {it.type === 'image' && <div class="x-item__row"><Select value={it.ref || ''} disabled={!ok} aria-label="Obraz" onChange={(e) => { const ref = e.currentTarget.value; const m = isMediaRef(ref) && mediaItem(ref); patch(i, { ref, ...(m && /^(Ilustracja|Obraz)$/.test(it.title) ? { title: m.alt?.pl || m.name } : {}) }); }} options={imageOpts(s)} />
             {isMediaRef(it.ref) ? (mediaItem(it.ref) ? <Tag tone="green" icon="image">zdjęcie</Tag> : <Tag tone="warn">plik usunięty</Tag>) : null}</div>}
           {it.type === 'ticker' && <Input value={it.text || ''} disabled={!ok} aria-label="Tekst paska" placeholder="Tekst paska informacyjnego" onChange={(e) => patch(i, { text: e.currentTarget.value })} />}

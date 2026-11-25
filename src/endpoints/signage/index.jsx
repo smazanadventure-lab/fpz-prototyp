@@ -8,6 +8,7 @@ import { strings, tr } from '../../kernel/i18n.js';
 import { clsx, fmtDate, fmtTime, pad2 } from '../../kernel/util.js';
 import { Icon, Logo, ScaleBox, Tag, Media, QR, PatternBand, LiveCaptions, Tabs } from '../../ui/components.jsx';
 import { VideoSim } from '../../ui/media.jsx';
+import { mediaItem, isMediaRef } from '../../kernel/media.js';
 
 if (typeof window !== 'undefined') window.__fpzKiosk = Object.assign(window.__fpzKiosk || {}, { makeApi, getState });
 
@@ -152,6 +153,8 @@ function Slide({ item, now }) {
         </div></div>);
     }
     case 'video': {
+      // plik wideo prosto z biblioteki mediów („media:<id>”) albo film z CMS
+      if (isMediaRef(item.ref)) { const m = mediaItem(item.ref); return <div class="s-video">{m ? <VideoLoop v={{ id: m.id, src: item.ref, title: { pl: item.title || m.name, en: '' }, durationSec: m.durationSec || item.durationSec || 20, kind: 'studio', captions: [] }} /> : null}<div class="s-video__t"><b>{item.title || m?.name}</b></div></div>; }
       const v = s.videos.find((x) => x.id === item.ref) || s.videos[0];
       return <div class="s-video">{v ? <VideoLoop v={v} /> : null}<div class="s-video__t"><b>{v ? v.title.pl : item.title}</b>{v && <span lang="en">{v.title.en}</span>}</div></div>;
     }
