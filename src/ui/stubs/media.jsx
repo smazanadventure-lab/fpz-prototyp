@@ -99,6 +99,7 @@ const TRACKS = [
   { id: 'kolej', name: { pl: 'Kolej', en: 'Railway' }, desc: { pl: 'Parowóz na bocznicy.', en: 'A steam engine on the siding.' }, f: 55 },
   { id: 'symfonia', name: { pl: 'Symfonia industrialna', en: 'Industrial symphony' }, desc: { pl: 'Dźwięki maszyn jako podkład linii muzycznej.', en: 'Machine sounds under a musical line.' }, f: 220 },
 ];
+export const SOUND_TRACKS = TRACKS;
 /** Odtwarzacz „Dźwięków miasta” (Web Audio, dźwięki syntetyczne). → { tracks, current, playing, play(id?), stop(), next(), prev(), volume, setVolume(v 0..1) } */
 export function useSoundscape() {
   const ctxRef = useRef(null); const nodes = useRef([]); const [current, setCurrent] = useState(TRACKS[0].id); const [playing, setPlaying] = useState(false); const [volume, setVol] = useState(0.6); const gain = useRef(null);

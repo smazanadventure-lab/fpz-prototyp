@@ -300,7 +300,7 @@ export function EntryView({ id }) {
     <div class="k-entry__col">
       <div class="k-tagrow">{e.year && <Tag icon="calendar">{e.year}</Tag>}{era && <Tag tone="green">{L(era.name)}</Tag>}{e.poiId && <Tag icon="mapPin">{L(sel.poi(e.poiId)?.name)}</Tag>}</div>
       <p class="k-lead">{L(e.lead)}</p>
-      {e.audioGuide && <AudioGuide text={L(e.audioGuide.text)} title={t('k.listen')} lang={lang} />}
+      {e.audioGuide && <AudioGuide src={e.audioGuide.src} text={L(e.audioGuide.text)} title={t('k.listen')} lang={lang} />}
       <Rich text={paras.slice(0, half).join('\n\n')} class="k-rich" />
     </div>
     {strip.length > 0 && <div class="k-entry__strip">

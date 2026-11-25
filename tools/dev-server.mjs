@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(process.argv.slice(2).map((a) => { const m = a.match(/^--([^=]+)(?:=(.*))?$/); return m ? [m[1], m[2] ?? true] : [a, true]; }));
-const port = +(args.port || 8787); const dataDir = path.join(root, args.data || '.data'); const site = path.join(root, 'dist/site');
+const port = +(args.port || 8787); const dataDir = path.join(root, args.data || '.data'); const site = path.join(root, 'dist', typeof args.site === 'string' ? args.site : 'site');
 if (args.fresh) fs.rmSync(dataDir, { recursive: true, force: true });
 fs.mkdirSync(dataDir, { recursive: true });
 

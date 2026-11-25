@@ -12,6 +12,8 @@ z tłumaczem PJM są symulowane. Logotyp jest znakiem zastępczym (właściwy pl
 1. **Jeden plik** – otwórz `dist/index.html` w przeglądarce (działa z dysku, bez serwera i bez internetu). Dane są wspólne dla zakładek, zapisane tylko w tej przeglądarce.
 2. **Serwer + aplikacja na telefon (pilotaż)** – ten sam kod wdrożony na Netlify: wspólne dane na serwerze (`/api/*`), każda końcówka pod własnym adresem (`/app`, `/www`, `/kiosk/TZ.T1.1`, `/lcd/LCD-01`, `/bileter`, `/cms`, `/ekspozycja`), aplikacja dla zwiedzających jako APK (Android) albo strona dodana do ekranu głównego. **Instrukcja: [`docs/WDROZENIE.md`](docs/WDROZENIE.md)**, aplikacja Android: [`docs/APK.md`](docs/APK.md).
 
+W wersji serwerowej działają też: **prawdziwe pliki multimedialne** (zdjęcia, filmy, nagrania wgrywane w CMS i odtwarzane we wszystkich końcówkach), **prawdziwy stan urządzeń** w panelu zarządzania (kioski i ekrany meldują się serwerowi) oraz – na komputerze z Windows – **sterowanie sprzętem** przez program sterujący: [`docs/KIOSK-WINDOWS.md`](docs/KIOSK-WINDOWS.md).
+
 Logowanie w panelach jest makietą – login i hasło konta testowego są wpisane.
 
 ## Uruchomienie

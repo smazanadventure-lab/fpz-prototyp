@@ -147,7 +147,7 @@ export function EntryScreen({ id }) {
       <p class="m-entry__lead">{L(e.lead)}</p>
       {hero && <figure class="m-entry__hero"><AliveMedia ill={hero.ill} src={hero.src} tone={tone} ratio={getState().env.network === 'slow' ? '16/9' : '4/3'} shape="arc-tr" alt={L(hero.caption) || L(e.title)} onClick={() => imgs.length && setLb(0)} />{hero.caption && <figcaption>{L(hero.caption)}{hero.credit ? ` · ${hero.credit}` : ''}</figcaption>}</figure>}
       {e.audioGuide && <section class="m-entry__sec"><h2 class="m-h3"><Icon name="headphones" size={18} />{t('m.e.audio')}</h2>
-        <AudioGuide text={L(e.audioGuide.text)} title={L(e.title)} />
+        <AudioGuide src={e.audioGuide.src} text={L(e.audioGuide.text)} title={L(e.title)} />
         <button type="button" class="m-link" onClick={() => app.playAudio([id])}><Icon name="playlist" size={15} />{t('m.e.queue')}</button></section>}
       <Rich text={L(e.body)} class="m-entry__body" />
       {imgs.length > 1 && <section class="m-entry__sec"><h2 class="m-h3"><Icon name="image" size={18} />{t('m.e.gallery')} <small>({imgs.length})</small></h2>
@@ -155,7 +155,7 @@ export function EntryScreen({ id }) {
       {vids.length > 0 && <section class="m-entry__sec"><h2 class="m-h3"><Icon name="video" size={18} />{t('m.e.videos')}</h2>{vids.map((m, k) => <div key={k} class="m-vid"><VideoSim title={L(m.caption)} ill={m.ill} src={m.src} durationSec={m.durationSec} captions={m.captions} /><small>{L(m.caption)}{m.credit ? ` · ${m.credit}` : ''}</small></div>)}</section>}
       {models.length > 0 && <section class="m-entry__sec"><h2 class="m-h3"><Icon name="cube" size={18} />{t('m.e.model')}</h2>{models.map((m, k) => <div key={k}><Model3D modelId={m.modelId || 'lathe'} /><small class="m-muted">{L(m.caption)}</small></div>)}</section>}
       {panos.length > 0 && <section class="m-entry__sec"><h2 class="m-h3"><Icon name="panorama" size={18} />{t('m.e.panorama')}</h2><Panorama360 hotspots={getState().futureHotspots || []} /></section>}
-      {audios.length > 0 && <section class="m-entry__sec"><h2 class="m-h3"><Icon name="volume" size={18} />{t('m.e.recording')}</h2>{audios.map((m, k) => <AudioGuide key={k} text={L(m.caption)} title={L(m.caption)} />)}</section>}
+      {audios.length > 0 && <section class="m-entry__sec"><h2 class="m-h3"><Icon name="volume" size={18} />{t('m.e.recording')}</h2>{audios.map((m, k) => <AudioGuide key={k} src={m.src} text={L(m.caption)} title={L(m.caption)} />)}</section>}
       {poi && <section class="m-entry__sec"><h2 class="m-h3"><Icon name="mapPin" size={18} />{t('m.e.place')}</h2>
         <Card variant="mint" class="m-placecard"><CardBody><Media ill={poi.ill} src={poi.src} ratio="1/1" shape="circle" class="m-placecard__img" alt="" /><span><b>{L(poi.name)}</b><small>{fmtDistance(sel.distanceTo(poi))}{poi.accessible ? ' · ♿' : ''}</small></span>
           <span class="m-placecard__btns"><IconButton icon="info" variant="mint" label={L(poi.name)} onClick={() => app.openPoi(poi.id)} /><IconButton icon="map" variant="round" label={t('m.showOnMap')} onClick={() => app.showOnMap(poi.id)} /></span></CardBody></Card></section>}

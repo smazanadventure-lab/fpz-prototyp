@@ -5,9 +5,10 @@ import { getState } from '../../kernel/store.js';
 import { sel } from '../../kernel/api.js';
 import { pad2, byId } from '../../kernel/util.js';
 import { Icon } from '../../ui/components.jsx';
+import { deviceLink } from '../../kernel/presence.js';
 
 export const XCtx = createContext(null);
-/** { go(section), openDevice(id), can(perm), touch } */
+/** { go(section), openDevice(id), can(perm), touch, presence } */
 export const useX = () => useContext(XCtx);
 
 export const POWER = {
@@ -69,3 +70,62 @@ export function Panel({ title, icon, actions, children, class: cls, pad = true }
   return (<section class={`x-panel${cls ? ' ' + cls : ''}`}>{(title || actions) && <div class="x-panel__head"><h3>{icon && <Icon name={icon} size={17} />}{title}</h3>{actions && <div class="x-panel__act">{actions}</div>}</div>}<div class={pad ? 'x-panel__body' : 'x-panel__body x-panel__body--flush'}>{children}</div></section>);
 }
 export const csv = (rows) => '﻿' + rows.map((r) => r.map((v) => { const s = String(v ?? ''); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(';')).join('\n');
+
+/* ── Stan rzeczywisty (sygnały urządzeń z serwera) ── */
+/** Urządzenia, które mają własną stronę (kiosk / ekran) i mogą się meldować same. */
+export const PAGE_KINDS = { kiosk: 'kiosk', lcd: 'lcd', projector: 'lcd' };
+/** Adres strony urządzenia (bez importu powłoki – uniknięcie cyklu importów). */
+export function devicePageUrl(d) {
+  const seg = PAGE_KINDS[d?.kind]; if (!seg) return null; const p = `${seg}/${d.id}`;
+  try { if (/^https?:$/.test(location.protocol)) return `${location.origin}/${p}`; } catch { /* brak adresu */ }
+  return `?end=${encodeURIComponent(p)}`;
+}
+/** Zgłoszenie zamknięte ('closed'; monitoring serwera dodaje znacznik autoClosed; 'resolved' – zgodność ze starszymi danymi). */
+export const isClosed = (i) => i.status === 'closed' || i.status === 'resolved';
+/** Pochodzenie zgłoszenia: auto – prawdziwy monitoring serwera (brak sygnału), manual – zgłoszenie ręczne, sim – symulacja awarii / dane przykładowe. */
+export const incOrigin = (i) => (String(i.id || '').startsWith('inc-mon-') ? 'auto' : i.source === 'zgłoszenie ręczne' ? 'manual' : 'sim');
+export const ORIGIN = {
+  auto: { label: 'wykryte automatycznie (brak sygnału)', short: 'wykryte automatycznie', tone: 'info', icon: 'activity' },
+  manual: { label: 'zgłoszenie ręczne', short: 'zgłoszenie ręczne', tone: 'neutral', icon: 'user' },
+  sim: { label: 'symulacja (dane testowe)', short: 'symulacja', tone: 'neutral', icon: 'sparkles' },
+};
+export function OriginTag({ inc }) { const o = ORIGIN[incOrigin(inc)]; return <span class={`x-origin x-origin--${incOrigin(inc)}`}><Icon name={o.icon} size={12} />{o.label}</span>; }
+
+/** „12 s temu”, „6 min temu”, „2 h 5 min temu”. */
+export const agoTxt = (sec) => (sec == null ? '—' : sec < 60 ? `${Math.max(0, Math.round(sec))} s` : sec < 3600 ? `${Math.floor(sec / 60)} min` : sec < 86400 ? `${Math.floor(sec / 3600)} h ${Math.floor((sec % 3600) / 60)} min` : `${Math.floor(sec / 86400)} d`);
+export const clockTxt = (ms) => (ms ? new Date(ms).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—');
+
+/**
+ * Stan połączenia jednego urządzenia liczony na bieżąco (czas „ostatniego sygnału” płynie między odczytami z serwera).
+ * presence pochodzi z kontekstu (useX().presence) – zob. index.jsx.
+ */
+export function linkOf(presence, id) {
+  if (!presence || presence.mode !== 'remote') return { state: 'local', lastAt: null, agoSec: null, page: null, agent: null };
+  if (!presence.beats) return { state: 'loading', lastAt: null, agoSec: null, page: null, agent: null };
+  const now = Date.now() + (presence.skew || 0); return deviceLink({ ...presence, now }, id);
+}
+/** Znacznik połączenia (stan RZECZYWISTY). */
+export function LinkBadge({ link, compact }) {
+  if (!link || link.state === 'local') return <span class="x-link-b x-link-b--local" title="Wersja bez serwera – stan symulowany"><Icon name="sparkles" size={12} />symulacja</span>;
+  if (link.state === 'loading') return <span class="x-link-b x-link-b--never"><Icon name="refresh" size={13} />sprawdzanie…</span>;
+  if (link.state === 'online') return <span class="x-link-b x-link-b--online" data-link="online"><Icon name="wifi" size={13} />Podłączone<small>{agoTxt(link.agoSec)} temu</small></span>;
+  if (link.state === 'offline') return <span class={`x-link-b x-link-b--offline${link.agoSec >= 300 ? ' is-long' : ''}`} data-link="offline"><Icon name="wifiOff" size={13} />{compact ? 'Brak sygnału' : `Brak sygnału od ${agoTxt(link.agoSec)}`}{compact && <small>od {agoTxt(link.agoSec)}</small>}</span>;
+  return <span class="x-link-b x-link-b--never" data-link="never"><Icon name="circleX" size={13} />Nigdy niepodłączone</span>;
+}
+/** Etykieta pochodzenia wartości: „symulowane” albo „z urządzenia”. */
+export const SimMark = () => <span class="x-src x-src--sim" title="Wartość symulowana w prototypie – nie pochodzi z urządzenia">symulowane</span>;
+export const RealMark = () => <span class="x-src x-src--real" title="Wartość zgłoszona przez urządzenie">z urządzenia</span>;
+
+/** Krótka pomoc: skąd biorą się dane rzeczywiste, co jest symulowane. */
+export function PresenceHelp({ mode }) {
+  return (<details class="x-help">
+    <summary><Icon name="help" size={15} />Skąd pochodzi stan rzeczywisty, a co jest symulowane?</summary>
+    <ul>
+      <li><b>Zadane</b> (włączone / wyłączone / serwis, tryb nocny, playlista, głośność) – to polecenia z tego panelu i harmonogramów zapisane na serwerze.</li>
+      <li><b>Rzeczywiste</b> – strona kiosku lub ekranu (adres <code>/kiosk/ID</code>, <code>/lcd/ID</code>) co ok. 30 s wysyła serwerowi sygnał: przeglądarkę, rozdzielczość, pełny ekran, wersję aplikacji, ostatnią interakcję. Panel odczytuje sygnały co 10 s. Brak sygnału przez ponad 5 min przy stanie „włączone” tworzy zgłoszenie P2, które zamyka się samo po powrocie połączenia.</li>
+      <li><b>Program sterujący</b> na komputerze kiosku (opcjonalny, Windows – docs/KIOSK-WINDOWS.md) dodaje dane systemu: obciążenie procesora, pamięć, dysk, głośność, stan monitora – oznaczone „z urządzenia”.</li>
+      <li><b>Symulowane</b>: temperatura, obciążenie i czas pracy z danych przykładowych (o ile urządzenie ich nie przysyła), urządzenia bez własnej strony (nagłośnienie, oświetlenie, serwer, sieć) oraz „Symuluj awarię”.</li>
+      {mode === 'local' && <li><b>Ta wersja działa bez serwera</b> – sygnałów nie ma, cały stan urządzeń jest symulowany.</li>}
+    </ul>
+  </details>);
+}

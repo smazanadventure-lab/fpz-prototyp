@@ -3,9 +3,11 @@ import { useState, useEffect } from 'preact/hooks';
 import { useClient } from '../../kernel/client.jsx';
 import { useStore } from '../../kernel/store.js';
 import { sel } from '../../kernel/api.js';
-import { deepClone, matches, localIso, nowIso, fmtDateTime, ago, download, clsx } from '../../kernel/util.js';
+import { deepClone, matches, localIso, fmtDateTime, fmtDuration, ago, download, clsx } from '../../kernel/util.js';
+import { removeMedia, mediaItem, mediaUrl, mediaRef, isMediaRef, MEDIA_ACCEPT_ALL, MEDIA_MAX } from '../../kernel/media.js';
 import { Icon, Button, IconButton, Modal, Input, Textarea, Select, Switch, Checkbox, SearchInput, Tabs, Tag, Notice, Empty, Media, Rich, QR, qrSvgString } from '../../ui/components.jsx';
-import { useCms, useRun, useDraft, DataTable, Crud, Form, FieldBox, LangInputs, MediaSource, StatusTag, STATUS, CHANNELS, When, Seg, Head, poiOpts, langsOn, missingLangs, denyText, getIn } from './kit.jsx';
+import { VideoSim, AudioGuide, SOUND_TRACKS } from '../../ui/media.jsx';
+import { useCms, useRun, useDraft, DataTable, Crud, Form, FieldBox, LangInputs, MediaPicker, MediaThumb, mediaMeta, useUploads, UploadQueue, KIND, StatusTag, STATUS, CHANNELS, When, Seg, Head, poiOpts, langsOn, missingLangs, denyText, getIn } from './kit.jsx';
 
 const L0 = () => ({ pl: '', en: '' });
 const catOpts = () => sel.categoryTree().flatMap((c) => [{ id: c.id, label: c.name.pl }, ...c.children.map((x) => ({ id: x.id, label: `   └ ${x.name.pl}` }))]);
@@ -113,10 +115,12 @@ function EntryEditor({ id, onClose, onOpen }) {
             <FieldBox label="Tytuł"><Input value={draft.title?.[lang] || ''} placeholder={lang !== 'pl' ? draft.title.pl : ''} onInput={(ev) => set(`title.${lang}`, ev.currentTarget.value)} /></FieldBox>
             <FieldBox label="Lead (wprowadzenie, 1–2 zdania)"><Textarea rows={2} value={draft.lead?.[lang] || ''} placeholder={lang !== 'pl' ? draft.lead?.pl : ''} onInput={(ev) => set(`lead.${lang}`, ev.currentTarget.value)} /></FieldBox>
             <FieldBox label="Treść" hint="Akapity oddziel pustą linią. **pogrubienie** – tekst między podwójnymi gwiazdkami."><Textarea rows={9} class="c-mono" value={draft.body?.[lang] || ''} placeholder={lang !== 'pl' ? draft.body?.pl : ''} onInput={(ev) => set(`body.${lang}`, ev.currentTarget.value)} /></FieldBox>
-            <FieldBox label="Audioprzewodnik (tekst lektora)" hint="Odczytywany syntezą mowy w aplikacji i na kioskach; w wersji docelowej także nagranie lektora.">
+            <FieldBox label="Audioprzewodnik (tekst lektora)" hint="Bez nagrania odczytywany syntezą mowy w aplikacji, na stronie WWW i na kioskach.">
               <Switch label="Wpis ma audioprzewodnik" checked={!!draft.audioGuide} onChange={(ev) => set('audioGuide', ev.currentTarget.checked ? { text: L0() } : null)} />
               {draft.audioGuide && <Textarea rows={3} value={draft.audioGuide.text?.[lang] || ''} placeholder={lang !== 'pl' ? draft.audioGuide.text?.pl : ''} onInput={(ev) => set(`audioGuide.text.${lang}`, ev.currentTarget.value)} />}
             </FieldBox>
+            {draft.audioGuide && <MediaPicker kind="audio" label="Nagranie lektora (plik audio)" hint="Z nagraniem aplikacja, strona WWW i kioski odtwarzają plik zamiast syntezy mowy; tekst powyżej pozostaje transkrypcją." testid="mp-guide"
+              value={draft.audioGuide.src} onChange={(ref) => set('audioGuide', { ...draft.audioGuide, src: ref || undefined })} />}
           </div>
         </section>
         <section class="c-panel"><h3>Klasyfikacja i miejsce</h3>
@@ -161,9 +165,12 @@ function EntryEditor({ id, onClose, onOpen }) {
             <h1>{L(draft.title) || 'Tytuł wpisu'}</h1>
             {draft.year && <p class="c-muted c-small">{draft.year}{draft.poiId ? ` · ${sel.poi(draft.poiId)?.name[pvLang] || sel.poi(draft.poiId)?.name.pl}` : ''}</p>}
             <p class="c-phone__lead">{L(draft.lead)}</p>
-            {draft.audioGuide && <div class="c-phone__audio"><Icon name="headphones" size={18} /><span><b>Audioprzewodnik</b><small>{L(draft.audioGuide.text).slice(0, 90)}{L(draft.audioGuide.text).length > 90 ? '…' : ''}</small></span><Icon name="play" size={18} /></div>}
+            {draft.audioGuide && (draft.audioGuide.src && mediaItem(draft.audioGuide.src) ? <AudioGuide compact src={draft.audioGuide.src} text={L(draft.audioGuide.text)} title="Audioprzewodnik" class="c-phone__player" />
+              : <div class="c-phone__audio"><Icon name="headphones" size={18} /><span><b>Audioprzewodnik</b><small>{L(draft.audioGuide.text).slice(0, 90)}{L(draft.audioGuide.text).length > 90 ? '…' : ''}</small></span><Icon name="play" size={18} /></div>)}
             <Rich text={L(draft.body)} />
-            {media.length > 1 && <div class="c-phone__strip">{media.slice(1, 5).map((m, i) => <Media key={i} ill={m.ill} src={m.src} ratio="1/1" shape="rounded" />)}</div>}
+            {media.filter((m) => m.type === 'video' && m.src && mediaItem(m.src)).map((m, i) => <div key={'v' + i} class="c-phone__player"><VideoSim src={m.src} title={L(m.caption)} captions={m.captions} showTitle={false} /></div>)}
+            {media.filter((m) => m.type === 'audio' && m.src && mediaItem(m.src)).map((m, i) => <AudioGuide key={'a' + i} compact src={m.src} text={L(m.caption)} title={L(m.caption) || 'Nagranie'} class="c-phone__player" />)}
+            {media.length > 1 && <div class="c-phone__strip">{media.filter((m) => m !== first).slice(0, 4).map((m, i) => <Media key={i} ill={m.ill} src={m.src} ratio="1/1" shape="rounded" />)}</div>}
           </div>
         </div></div>
         <div class="c-preview__ch">{CHANNELS.map((c) => <Tag key={c.id} tone={(draft.channels || []).includes(c.id) ? 'green' : 'neutral'} icon={c.icon}>{c.label}</Tag>)}</div>
@@ -172,26 +179,34 @@ function EntryEditor({ id, onClose, onOpen }) {
   </div>);
 }
 
-/** Lista mediów wpisu: typ, źródło (ilustracja / biblioteka), podpisy per język, model 3D. */
+/** Lista mediów wpisu: typ, plik z biblioteki (zdjęcie → ill, wideo/audio → src) lub ilustracja, podpisy per język, model 3D. */
 export function MediaList({ items, onChange }) {
   const upd = (i, patch) => onChange(items.map((m, j) => (j === i ? { ...m, ...patch } : m)));
   const move = (i, d) => { const a = [...items]; const j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; onChange(a); };
+  // wideo: src i ill wskazują ten sam plik (kadr filmu zamiast ilustracji we wszystkich kanałach); bez pliku – ilustracja + symulacja
+  const setFile = (i, m, ref, item) => {
+    if (m.type === 'video') upd(i, { src: ref || undefined, ill: ref || (isMediaRef(m.ill) ? 'hall-interior' : m.ill), ...(item?.durationSec ? { durationSec: item.durationSec } : {}) });
+    else upd(i, { src: ref || undefined, ...(item?.durationSec ? { durationSec: item.durationSec } : {}) });
+  };
   return (<div class="c-mlist">
-    {items.map((m, i) => (<div class="c-mitem" key={i}>
-      <div class="c-mitem__src"><MediaSource ill={m.ill} src={m.src} onChange={({ ill, src }) => upd(i, { ill, src: src || undefined })} />
+    {items.map((m, i) => (<div class="c-mitem" key={i} data-mitem={i} data-type={m.type}>
+      <div class="c-mitem__src">
+        {m.type === 'video' || m.type === 'audio'
+          ? <MediaPicker kind={m.type} value={m.src} testid={`mp-item-${i}`} onChange={(ref, item) => setFile(i, m, ref, item)} />
+          : <MediaPicker kind="image" illustration value={m.ill} fallbackIll={m.type === 'panorama' ? 'city-panorama' : 'hall-exterior'} testid={`mp-item-${i}`} onChange={(ref) => upd(i, { ill: ref, src: undefined })} />}
         <div class="c-mitem__ord"><IconButton icon="up" variant="plain" size="sm" label="W górę" disabled={i === 0} onClick={() => move(i, -1)} /><IconButton icon="down" variant="plain" size="sm" label="W dół" disabled={i === items.length - 1} onClick={() => move(i, 1)} /><IconButton icon="trash" variant="plain" size="sm" label="Usuń element" onClick={() => onChange(items.filter((_, j) => j !== i))} /></div></div>
       <div class="c-mitem__f">
         <div class="c-row">
-          <FieldBox label="Typ"><Select value={m.type} onChange={(e) => upd(i, { type: e.currentTarget.value })}>{MEDIA_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</Select></FieldBox>
+          <FieldBox label="Typ"><Select value={m.type} onChange={(e) => { const type = e.currentTarget.value; upd(i, { type, ...(type !== m.type && (type === 'video' || type === 'audio' || m.type === 'video' || m.type === 'audio') ? { src: undefined, ill: isMediaRef(m.ill) && type !== 'image' ? 'hall-interior' : m.ill } : {}) }); }}>{MEDIA_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</Select></FieldBox>
           {m.type === 'model3d' && <FieldBox label="Model 3D (modelId)"><Select value={m.modelId || 'lathe'} onChange={(e) => upd(i, { modelId: e.currentTarget.value })}>{MODELS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</Select></FieldBox>}
-          {(m.type === 'video' || m.type === 'audio') && <FieldBox label="Czas (s)"><Input type="number" min="0" value={m.durationSec ?? ''} onInput={(e) => upd(i, { durationSec: +e.currentTarget.value || null })} /></FieldBox>}
+          {(m.type === 'video' || m.type === 'audio') && <FieldBox label="Czas (s)" hint={m.src && mediaItem(m.src)?.durationSec ? 'z pliku' : undefined}><Input type="number" min="0" value={m.durationSec ?? ''} onInput={(e) => upd(i, { durationSec: +e.currentTarget.value || null })} /></FieldBox>}
           <FieldBox label="Autor / źródło"><Input value={m.credit || ''} onInput={(e) => upd(i, { credit: e.currentTarget.value })} /></FieldBox>
         </div>
         <FieldBox label="Podpis / tekst alternatywny"><LangInputs value={m.caption} onChange={(v) => upd(i, { caption: v })} /></FieldBox>
       </div>
     </div>))}
     {!items.length && <p class="c-muted">Brak mediów – dodaj zdjęcie, film, nagranie, obiekt 3D lub panoramę.</p>}
-    <div class="c-row">{MEDIA_TYPES.map((t) => <Button key={t.id} size="sm" variant="secondary" icon={t.icon} onClick={() => onChange([...items, { type: t.id, ill: t.id === 'panorama' ? 'city-panorama' : 'hall-interior', caption: L0(), credit: '', ...(t.id === 'model3d' ? { modelId: 'lathe' } : {}), ...(t.id === 'video' || t.id === 'audio' ? { durationSec: 60 } : {}) }])}>{t.label}</Button>)}</div>
+    <div class="c-row">{MEDIA_TYPES.map((t) => <Button key={t.id} size="sm" variant="secondary" icon={t.icon} data-testid={`c-madd-${t.id}`} onClick={() => onChange([...items, { type: t.id, ill: t.id === 'panorama' ? 'city-panorama' : 'hall-interior', caption: L0(), credit: '', ...(t.id === 'model3d' ? { modelId: 'lathe' } : {}), ...(t.id === 'video' || t.id === 'audio' ? { durationSec: 60 } : {}) }])}>{t.label}</Button>)}</div>
   </div>);
 }
 
@@ -256,9 +271,10 @@ export function VideosCrud({ openId }) {
     <Crud col="videos" title="Filmy" noun="film" openId={openId} modalSize="xl" search={(v) => [v.title.pl, v.title.en]}
       blank={() => ({ title: L0(), description: L0(), durationSec: 60, ill: 'studio', kind: 'studio', year: null, captions: [{ t: 0, text: L0() }] })}
       beforeSave={(d) => ({ ...d, captions: (d.captions || []).slice().sort((a, b) => a.t - b.t) })}
-      cols={[{ k: 'title', label: 'Tytuł', render: (v) => <b>{v.title.pl}</b> }, { k: 'kind', label: 'Rodzaj', render: (v) => ({ studio: 'Studio', archive: 'Archiwalny', live: 'Transmisja' }[v.kind] || v.kind) }, { k: 'durationSec', label: 'Czas', align: 'right', render: (v) => `${Math.floor(v.durationSec / 60)}:${String(v.durationSec % 60).padStart(2, '0')}` }, { k: 'captions', label: 'Napisy', sort: (v) => v.captions?.length || 0, render: (v) => <Tag tone={v.captions?.length ? 'green' : 'warn'} icon="captions">{v.captions?.length || 0} linii</Tag> }]}
+      cols={[{ k: 'title', label: 'Tytuł', render: (v) => <b>{v.title.pl}</b> }, { k: 'src', label: 'Plik', sort: (v) => (v.src && mediaItem(v.src) ? 0 : 1), render: (v) => (v.kind === 'live' ? <Tag tone="live">na żywo</Tag> : v.src && mediaItem(v.src) ? <Tag tone="green" icon="film">plik wideo</Tag> : <Tag icon="sparkles">symulacja</Tag>) }, { k: 'kind', label: 'Rodzaj', render: (v) => ({ studio: 'Studio', archive: 'Archiwalny', live: 'Transmisja' }[v.kind] || v.kind) }, { k: 'durationSec', label: 'Czas', align: 'right', render: (v) => fmtDuration(v.durationSec || 0) }, { k: 'captions', label: 'Napisy', sort: (v) => v.captions?.length || 0, render: (v) => <Tag tone={v.captions?.length ? 'green' : 'warn'} icon="captions">{v.captions?.length || 0} linii</Tag> }]}
       fields={[{ k: 'title', label: 'Tytuł', type: 'L' }, { k: 'description', label: 'Opis', type: 'Ltext', rows: 2 }, { k: 'kind', label: 'Rodzaj', type: 'select', empty: false, opts: [{ id: 'studio', label: 'Wirtualne studio' }, { id: 'archive', label: 'Archiwalny' }, { id: 'live', label: 'Transmisja' }] },
-        { k: 'year', label: 'Rok', type: 'number' }, { k: 'durationSec', label: 'Czas trwania (s)', type: 'number', min: 1 }, { k: 'ill', label: 'Kadr / miniatura', type: 'image' },
+        { k: 'src', label: 'Plik wideo', type: 'custom', hint: 'MP4 (H.264 + AAC) lub WebM. Bez pliku – symulacja z ilustracji. Transmisje na żywo są zawsze symulowane.', render: (d, set) => <><MediaPicker kind="video" value={d.src} testid="mp-video" onChange={(ref, item) => { set('src', ref || null); if (item?.durationSec) set('durationSec', item.durationSec); }} />{d.src && mediaItem(d.src) && d.kind !== 'live' && <div class="c-vprev"><VideoSim key={d.src} video={{ ...d, title: d.title }} /></div>}</> },
+        { k: 'year', label: 'Rok', type: 'number' }, { k: 'durationSec', label: 'Czas trwania (s)', type: 'number', min: 1, hint: 'Przy pliku – uzupełniany z jego długości.' }, { k: 'ill', label: 'Kadr / miniatura (ilustracja lub zdjęcie)', type: 'image', fallback: 'studio' },
         { k: 'captions', label: 'Napisy (linie z czasem rozpoczęcia)', type: 'custom', render: (d, set) => <CaptionsEditor value={d.captions || []} onChange={(v) => set('captions', v)} max={d.durationSec} /> }]} />
   </div>);
 }
@@ -272,57 +288,78 @@ function CaptionsEditor({ value, onChange, max }) {
 }
 
 /* ════════════ BIBLIOTEKA MEDIÓW ════════════ */
+// Pliki (obrazy, wideo, audio) wgrywane przez uploadMedia (kernel/media.js): w pilotażu serwerowym trafiają na serwer (/api/media/<id>),
+// w wersji jednoplikowej obraz zapisuje się w danych przeglądarki, a wideo/audio działa do zamknięcia karty.
 const MAX_IMG = 1.2 * 1024 * 1024;
-/** Tryb serwerowy (pilotaż): obrazy trafiają jako dataUrl do wspólnego stanu na serwerze – mniejszy limit. */
+/** Logo (Ustawienia → Identyfikacja) w trybie serwerowym trafia do wspólnego stanu jako dataUrl – mniejszy limit. */
 export const REMOTE_IMG = 300 * 1024;
 export const isRemote = (s) => s.net?.mode === 'remote';
 export const imgLimit = (s, local = MAX_IMG) => (isRemote(s) ? Math.min(REMOTE_IMG, local) : local);
-const kindOf = (f) => (f.type.startsWith('image/') ? 'image' : f.type.startsWith('audio/') ? 'audio' : f.type.startsWith('video/') ? 'video' : /\.(glb|gltf|obj|fbx|usdz)$/i.test(f.name) ? 'model3d' : 'other');
-export const fmtSize = (b) => (b == null ? '—' : b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(0)} kB` : `${(b / 1048576).toFixed(1)} MB`);
-export function mediaUsages(s, m) {
-  const out = [];
-  s.entries.forEach((e) => (e.media || []).forEach((x) => { if (x.src === m.id) out.push(`Wpis: ${e.title.pl}`); }));
-  ['gallery', 'news', 'venues'].forEach((c) => s[c].forEach((x) => { if (x.src === m.id) out.push(`${{ gallery: 'Galeria', news: 'Aktualność', venues: 'Obiekt' }[c]}: ${x.title?.pl || x.name?.pl}`); }));
-  if (m.dataUrl && s.settings.logo === m.dataUrl) out.push('Logotyp (Ustawienia → Identyfikacja)');
+export const fmtSize = (b) => (b == null ? '—' : b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(0)} kB` : `${(b / 1048576).toFixed(1).replace('.', ',')} MB`);
+export function readFile(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); }); }
+
+const USE_COLS = [['entries', 'Wpis'], ['gallery', 'Galeria'], ['news', 'Aktualność'], ['videos', 'Film'], ['pois', 'Miejsce'], ['venues', 'Obiekt'], ['events', 'Wydarzenie'], ['gameRoutes', 'Trasa gry'], ['rewards', 'Nagroda'], ['playlists', 'Playlista']];
+const REF_RE = /"(src|ill|ref)":"(media:)?([^"]+)"/g;
+/** Indeks użyć plików: id pozycji → ['Wpis: …', …] (odwołania „media:<id>” oraz dawne pola src/ref z samym identyfikatorem). */
+export function mediaUsageIndex(s) {
+  const ids = new Set(s.media.map((m) => m.id)); const out = new Map(); const add = (id, label) => { if (!ids.has(id)) return; const a = out.get(id) || []; if (!a.includes(label)) a.push(label); out.set(id, a); };
+  for (const [col, name] of USE_COLS) for (const x of s[col] || []) {
+    const j = JSON.stringify(x); if (!j.includes('"')) continue; let m; REF_RE.lastIndex = 0;
+    const label = `${name}: ${x.title?.pl || x.name?.pl || (typeof x.name === 'string' ? x.name : '') || x.id}`;
+    while ((m = REF_RE.exec(j))) if (m[2] || m[1] !== 'ill') add(m[3], label);
+  }
+  Object.entries(s.settings?.sounds || {}).forEach(([tid, ref]) => { if (isMediaRef(ref)) add(ref.slice(6), `Dźwięki miasta (kiosk TZ.T1.5): ${SOUND_TRACKS.find((t) => t.id === tid)?.name.pl || tid}`); });
+  s.media.forEach((m) => { if (m.dataUrl && s.settings.logo === m.dataUrl) add(m.id, 'Logotyp (Ustawienia → Identyfikacja)'); });
   return out;
 }
-export function readFile(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); }); }
+export const mediaUsages = (s, m) => mediaUsageIndex(s).get(m.id) || [];
+const STORED = { server: 'serwer (pilotaż) – plik dostępny na wszystkich urządzeniach', session: 'tylko ta karta przeglądarki (wersja jednoplikowa)' };
+
 export function MediaLibrary() {
-  const s = useStore(); const { api, toast } = useClient(); const { can, ask } = useCms(); const run = useRun();
+  const s = useStore(); const { api } = useClient(); const { can, ask } = useCms(); const run = useRun();
   const [type, setType] = useState(''); const [q, setQ] = useState(''); const [cur, setCur, set] = useDraft(null); const [over, setOver] = useState(false);
-  const ok = can('media'); const remote = isRemote(s); const lim = imgLimit(s); const limTxt = remote ? '300\u00a0kB' : '1,2\u00a0MB';
-  const upload = async (files) => {
-    for (const f of Array.from(files || [])) {
-      const k = kindOf(f);
-      if (k === 'image') { if (f.size > lim) { toast(`„${f.name}” ma ${fmtSize(f.size)} – ${remote ? 'w pilotażu serwerowym' : 'w prototypie'} obrazy do ${limTxt}.`, 'error', 5000); continue; }
-        const dataUrl = await readFile(f); run(api.cms.save('media', { name: f.name, type: 'image', mime: f.type, dataUrl, size: f.size, tags: [], uploadedAt: nowIso() }), `Wgrano „${f.name}”`); }
-      else run(api.cms.save('media', { name: f.name, type: k, mime: f.type || '', dataUrl: null, size: f.size, tags: [], uploadedAt: nowIso(), note: 'Prototyp: zapisano tylko metadane – w wersji docelowej plik trafia na serwer treści (CDN) z transkodowaniem.' }), `Zarejestrowano „${f.name}” (metadane)`);
-    }
-  };
-  const list = s.media.filter((m) => (!type || m.type === type) && matches(q, m.name, (m.tags || []).join(' ')));
-  const del = (m) => { const u = mediaUsages(s, m); ask({ title: 'Usunąć plik?', text: <>„{m.name}” zostanie usunięty z biblioteki.{u.length > 0 && <Notice tone="warn">Plik jest używany ({u.length}): {u.join('; ')}. Te miejsca wrócą do ilustracji systemowej.</Notice>}</>, ok: 'Usuń plik', onOk: () => { if (run(api.cms.remove('media', m.id), 'Usunięto plik')) setCur(null); } }); };
+  const ok = can('media'); const remote = isRemote(s); const up = useUploads();
+  const uses = mediaUsageIndex(s);
+  const list = s.media.filter((m) => (!type || m.type === type) && matches(q, m.name, (m.tags || []).join(' '), m.alt?.pl)).slice().sort((a, b) => String(b.uploadedAt || '').localeCompare(String(a.uploadedAt || '')));
+  const del = (m) => { const u = uses.get(m.id) || []; ask({ title: 'Usunąć plik?', text: <>„{m.name}” zostanie usunięty z biblioteki{m.stored === 'server' ? ' i z serwera' : ''}.{u.length > 0 && <Notice tone="warn">Plik jest używany ({u.length}): {u.join('; ')}. Te miejsca wrócą do ilustracji systemowej, symulacji filmu lub syntezy mowy.</Notice>}</>, ok: 'Usuń plik',
+    onOk: async () => { const r = await removeMedia(m.id, { api }); if (run(r, `Usunięto „${m.name}”`)) setCur(null); } }); };
+  const types = [{ id: '', label: 'Wszystkie', badge: s.media.length }, ...['image', 'video', 'audio'].map((id) => ({ id, label: KIND[id].label, icon: KIND[id].icon, badge: s.media.filter((m) => m.type === id).length })),
+    ...(s.media.some((m) => !KIND[m.type]) ? [{ id: 'model3d', label: 'Inne', badge: s.media.filter((m) => !KIND[m.type]).length }] : [])];
+  const url = cur && mediaUrl(cur);
   return (<div class="c-page">
-    <Head title="Biblioteka mediów" sub="Zdjęcia, nagrania audio, filmy i obiekty 3D wykorzystywane we wpisach, galerii i ofercie" />
-    <label class={clsx('c-drop', over && 'is-over', !ok && 'is-off')} onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={(e) => { e.preventDefault(); setOver(false); if (ok) upload(e.dataTransfer.files); }}>
-      <input type="file" multiple disabled={!ok} accept="image/*,audio/*,video/*,.glb,.gltf,.obj,.fbx,.usdz" class="c-sr" data-testid="media-upload" onChange={(e) => { upload(e.currentTarget.files); e.currentTarget.value = ''; }} />
-      <Icon name="upload" size={28} /><span><b>Przeciągnij pliki tutaj lub kliknij, aby wybrać</b><small>Obrazy (JPG, PNG, SVG, WebP) do {limTxt} zapisują się w prototypie w całości. Audio, wideo i 3D (GLB/GLTF/USDZ) – tylko metadane; w wersji docelowej pliki trafiają na serwer.</small></span>
+    <Head title="Biblioteka mediów" sub="Zdjęcia, filmy i nagrania audio wykorzystywane we wpisach, galerii, filmach, playlistach ekranów i w kioskach" />
+    <label class={clsx('c-drop', over && 'is-over', !ok && 'is-off')} onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={(e) => { e.preventDefault(); setOver(false); if (ok) up.run(e.dataTransfer.files); }}>
+      <input type="file" multiple disabled={!ok} accept={MEDIA_ACCEPT_ALL} class="c-sr" data-testid="media-upload" onChange={(e) => { up.run(e.currentTarget.files); e.currentTarget.value = ''; }} />
+      <Icon name="upload" size={28} /><span><b>Przeciągnij pliki tutaj lub kliknij, aby wybrać (można kilka naraz)</b>
+        <small>Obrazy JPG, PNG, WebP, GIF (duże zdjęcia są automatycznie zmniejszane do 2560 px) · wideo MP4 (H.264 + AAC) lub WebM · audio MP3, M4A, OGG, WAV · do {Math.round(MEDIA_MAX / 1048576)} MB na plik.</small></span>
     </label>
-    {remote && <Notice tone="info" icon="cloud" data-testid="media-remote-note">Pilotaż serwerowy: wgrane obrazy trafiają do wspólnego stanu na serwerze (widoczne na wszystkich urządzeniach), dlatego limit wynosi 300 kB na plik. Zmniejsz zdjęcia przed wgraniem.</Notice>}
-    <div class="c-toolbar"><SearchInput value={q} onInput={setQ} placeholder="Szukaj plików" />
-      <Seg value={type} onChange={setType} options={[{ id: '', label: 'Wszystkie' }, ...MEDIA_TYPES.filter((t) => t.id !== 'panorama').map((t) => ({ ...t, badge: s.media.filter((m) => m.type === t.id).length }))]} />
+    <UploadQueue queue={up.queue} onClear={up.clear} />
+    {remote ? <Notice tone="info" icon="cloud" data-testid="media-remote-note">Pilotaż serwerowy: pliki są zapisywane na serwerze i od razu dostępne we wszystkich końcówkach (aplikacja, WWW, kioski, ekrany LCD). Filmy i nagrania można przewijać – serwer wysyła je fragmentami.</Notice>
+      : <Notice tone="warn" icon="info">Wersja jednoplikowa (bez serwera): zdjęcia zapisują się w danych przeglądarki (do 1,2 MB po zmniejszeniu), a filmy i nagrania działają tylko do zamknięcia tej karty. Trwały zapis plików – w wersji serwerowej.</Notice>}
+    <div class="c-toolbar"><SearchInput value={q} onInput={setQ} placeholder="Szukaj plików (nazwa, tagi, opis)" />
+      <Seg value={type} onChange={setType} options={types} />
       <span class="c-grow" /><span class="c-count">{list.length} plików</span></div>
-    {list.length ? <div class="c-mgrid">{list.map((m) => { const u = mediaUsages(s, m).length; return (
-      <button type="button" class="c-mcard" key={m.id} onClick={() => setCur(deepClone(m))}>
-        <span class="c-mcard__pv">{m.dataUrl ? <img src={m.dataUrl} alt="" /> : <Icon name={MEDIA_TYPES.find((t) => t.id === m.type)?.icon || 'file'} size={34} />}</span>
-        <b>{m.name}</b><small>{MEDIA_TYPES.find((t) => t.id === m.type)?.label || 'Plik'} · {fmtSize(m.size)} · {u ? `użyty ${u}×` : 'nieużywany'}</small></button>); })}</div>
+    {list.length ? <div class="c-mgrid">{list.map((m) => { const u = (uses.get(m.id) || []).length; return (
+      <button type="button" class="c-mcard" key={m.id} data-testid="media-card" data-media={m.id} data-type={m.type} onClick={() => setCur(deepClone(m))}>
+        <span class="c-mcard__pv"><MediaThumb m={m} class="c-mcard__th" /></span>
+        <b title={m.name}>{m.name}</b><small>{mediaMeta(m)}</small><small class={u ? 'c-ok' : ''}>{u ? `używany: ${u}×` : 'nieużywany'}</small></button>); })}</div>
       : <Empty icon="image" title={s.media.length ? 'Brak plików spełniających kryteria' : 'Biblioteka jest pusta'} text="Wgraj pierwszy plik powyżej." />}
-    <Modal open={!!cur} onClose={() => setCur(null)} size="lg" title={cur?.name}
-      footer={cur && <><Button variant="danger" size="sm" icon="trash" disabled={!ok} onClick={() => del(cur)}>Usuń</Button><span class="c-grow" /><Button variant="secondary" size="sm" onClick={() => setCur(null)}>Zamknij</Button><Button size="sm" icon="save" disabled={!ok} onClick={() => { if (run(api.cms.save('media', cur), 'Zapisano')) setCur(null); }}>Zapisz</Button></>}>
+    <Modal open={!!cur} onClose={() => setCur(null)} size="xl" title={cur?.name}
+      footer={cur && <><Button variant="danger" size="sm" icon="trash" disabled={!ok} data-testid="media-delete" onClick={() => del(cur)}>Usuń plik</Button><span class="c-grow" /><Button variant="secondary" size="sm" onClick={() => setCur(null)}>Zamknij</Button><Button size="sm" icon="save" disabled={!ok} onClick={() => { if (run(api.cms.save('media', { id: cur.id, name: cur.name, alt: cur.alt, tags: cur.tags }), 'Zapisano opis pliku')) setCur(null); }}>Zapisz</Button></>}>
       {cur && <div class="c-split">
-        <div class="c-mprev">{cur.dataUrl ? <img src={cur.dataUrl} alt={cur.alt?.pl || cur.name} /> : <div class="c-mprev__ph"><Icon name={MEDIA_TYPES.find((t) => t.id === cur.type)?.icon || 'file'} size={48} /><span>Podgląd niedostępny w prototypie</span></div>}</div>
-        <div><Form draft={cur} set={set} cols={1} fields={[{ k: 'name', label: 'Nazwa pliku' }, { k: 'alt', label: 'Tekst alternatywny / opis', type: 'L' }, { k: 'tags', label: 'Tagi', type: 'tags' }]} />
-          <dl class="c-dl"><dt>Typ</dt><dd>{cur.mime || cur.type}</dd><dt>Rozmiar</dt><dd>{fmtSize(cur.size)}</dd><dt>Wgrano</dt><dd>{cur.uploadedAt ? fmtDateTime(cur.uploadedAt, 'pl') : '—'}</dd>
-            <dt>Użycia</dt><dd>{mediaUsages(s, cur).join('; ') || 'nieużywany – wybierz go w edytorze wpisu (Media → obraz → Biblioteka mediów)'}</dd></dl>
+        <div class="c-mprev" data-testid="media-preview">{!url ? <div class="c-mprev__ph"><Icon name={KIND[cur.type]?.icon || 'file'} size={48} /><span>{cur.stored === 'session' ? 'Plik był dostępny tylko w karcie, w której go wgrano.' : 'Podgląd niedostępny – brak pliku.'}</span></div>
+          : cur.type === 'image' ? <img src={url} alt={cur.alt?.pl || cur.name} />
+          : cur.type === 'video' ? <video src={url} controls playsInline preload="metadata" aria-label={cur.name} />
+          : cur.type === 'audio' ? <div class="c-mprev__audio"><Icon name="volume" size={48} /><audio src={url} controls preload="metadata" aria-label={cur.name} /></div>
+          : <div class="c-mprev__ph"><Icon name="file" size={48} /></div>}</div>
+        <div><Form draft={cur} set={set} cols={1} fields={[{ k: 'name', label: 'Nazwa pliku' }, { k: 'alt', label: cur.type === 'image' ? 'Tekst alternatywny (opis zdjęcia dla czytników ekranu)' : 'Opis', type: 'L' }, { k: 'tags', label: 'Tagi', type: 'tags' }]} />
+          <dl class="c-dl"><dt>Rodzaj</dt><dd>{KIND[cur.type]?.label || cur.type} · <code>{cur.mime || '—'}</code></dd><dt>Rozmiar</dt><dd>{fmtSize(cur.size)}{cur.parts > 1 ? ` (wysłano w ${cur.parts} częściach)` : ''}</dd>
+            {cur.w && cur.h ? <><dt>Wymiary</dt><dd>{cur.w} × {cur.h} px</dd></> : null}
+            {cur.durationSec ? <><dt>Długość</dt><dd>{fmtDuration(cur.durationSec)}</dd></> : null}
+            <dt>Zapis</dt><dd>{STORED[cur.stored] || (cur.dataUrl ? 'w danych przeglądarki' : 'tylko metryczka (bez pliku)')}</dd>
+            <dt>Wgrano</dt><dd>{cur.uploadedAt ? fmtDateTime(cur.uploadedAt, 'pl') : '—'}</dd>
+            {url && !url.startsWith('data:') && <><dt>Adres</dt><dd><a href={url} target="_blank" rel="noopener" class="c-small">{cur.stored === 'server' ? `/api/media/${cur.id}` : 'plik tymczasowy'}</a></dd></>}
+            <dt>Używane w</dt><dd data-testid="media-uses">{(uses.get(cur.id) || []).length ? <ul class="c-uses">{uses.get(cur.id).map((x) => <li key={x}>{x}</li>)}</ul> : 'nieużywany – wybierz go w edytorze (wpisy, galeria, filmy, aktualności, miejsca), w playliście ekranu albo w Ustawieniach → Dźwięki miasta'}</dd></dl>
           {cur.note && <Notice tone="info">{cur.note}</Notice>}</div>
       </div>}
     </Modal>

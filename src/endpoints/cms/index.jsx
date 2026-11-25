@@ -15,7 +15,7 @@ import { Venues, Events, Products, Orders, Inquiries, Customers } from './offer.
 import Community from './community.jsx';
 import Translations from './translations.jsx';
 import Notifications from './notify.jsx';
-import { Identity, SiteData, Payments, Offline, StaffRoles, AuditLog, Backup } from './settings.jsx';
+import { Identity, SiteData, Sounds, Payments, Offline, StaffRoles, AuditLog, Backup } from './settings.jsx';
 import './cms.css';
 
 const anyOf = (can, p) => [].concat(p || []).length === 0 || [].concat(p).some(can);
@@ -39,7 +39,7 @@ export const SECTIONS = [
   { id: 'i18n', label: 'Tłumaczenia', icon: 'languages', perm: 'translations', C: Translations },
   { id: 'push', label: 'Powiadomienia', icon: 'bell', perm: 'push', C: Notifications },
   { id: 'settings', label: 'Ustawienia', icon: 'settings', perm: 'settings', subs: [
-    { id: 'identity', label: 'Identyfikacja', icon: 'image', C: Identity }, { id: 'site', label: 'Dane obiektu', icon: 'building', C: SiteData }, { id: 'payments', label: 'Płatności', icon: 'card', C: Payments },
+    { id: 'identity', label: 'Identyfikacja', icon: 'image', C: Identity }, { id: 'site', label: 'Dane obiektu', icon: 'building', C: SiteData }, { id: 'sounds', label: 'Dźwięki miasta', icon: 'headphones', C: Sounds }, { id: 'payments', label: 'Płatności', icon: 'card', C: Payments },
     { id: 'offline', label: 'Pakiet offline', icon: 'wifiOff', C: Offline }, { id: 'staff', label: 'Użytkownicy i role', icon: 'shield', C: StaffRoles }, { id: 'audit', label: 'Dziennik zdarzeń', icon: 'activity', C: AuditLog },
     { id: 'backup', label: 'Kopia danych', icon: 'database', C: Backup }] },
 ];

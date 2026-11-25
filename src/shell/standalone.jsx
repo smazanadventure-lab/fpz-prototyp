@@ -11,6 +11,7 @@ import CmsApp from '../endpoints/cms/index.jsx';
 import MgmtApp from '../endpoints/mgmt/index.jsx';
 import { makeApi } from '../kernel/api.js';
 import { useStore } from '../kernel/store.js';
+import { startBeat } from '../kernel/presence.js';
 import { NetNotice } from './net.jsx';
 import { initNative } from './native.js';
 import { QrSheet } from './qrsheet.jsx';
@@ -65,6 +66,8 @@ export function Standalone({ route }) {
   useEffect(() => { document.title = TITLES[route.id] + (route.device ? ' ' + route.device : '') + ' (wersja testowa)'; document.documentElement.classList.add('sa-html'); }, []);
   // aplikacja Android: systemowy przycisk „wstecz” cofa ekran aplikacji, a na ekranie głównym minimalizuje ją
   useEffect(() => { if (route.id === 'mobile') initNative({ onBack: () => !!window.__fpzMobile?.back?.() }); }, []);
+  // kiosk / ekran / stanowisko bileterskie meldują się serwerowi – panel zarządzania widzi, co naprawdę jest podłączone
+  useEffect(() => ((route.id === 'kiosk' || route.id === 'signage') ? startBeat({ id: route.device }) : undefined), []);
   // adres /q/KOD (np. z wydrukowanego kodu QR): kod trafia „przed kamerę” aplikacji – skaner od razu go rozpozna
   useEffect(() => { if (route.code) makeApi('mobile').env.set({ qrInView: route.code }); }, []);
   const { id } = route;

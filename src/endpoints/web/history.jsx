@@ -175,7 +175,7 @@ function Article({ id }) {
         </section>}
 
         {(audios.length > 0) && <section class="w-asec" aria-labelledby="w-a-aud"><h2 id="w-a-aud"><Icon name="headphones" size={20} /> {t('w.a.audio')}</h2>
-          {audios.map((m, i) => { const txt = `${L(m.caption)}. ${L(e.lead)}`; return (<div key={i} class="w-audio"><AudioGuide title={L(m.caption)} text={txt} /></div>); })}
+          {audios.map((m, i) => { const txt = `${L(m.caption)}. ${L(e.lead)}`; return (<div key={i} class="w-audio"><AudioGuide src={m.src} title={L(m.caption)} text={txt} /></div>); })}
         </section>}
 
         {gal.length > 0 && <section class="w-asec" aria-labelledby="w-a-gal"><h2 id="w-a-gal"><Icon name="image" size={20} /> {t('w.a.gallery')} <span class="w-count">{gal.length}</span></h2><Gallery items={gal} /></section>}
@@ -194,7 +194,7 @@ function Article({ id }) {
       <aside class="w-article__aside" aria-label={t('w.a.aside')}>
         {e.audioGuide && <Card variant="mint" class="w-aside__card"><CardBody>
           <h2 class="w-h4"><Icon name="headphones" size={18} /> {t('w.a.guide')}</h2>
-          <AudioGuide title={L(e.title)} text={L(e.audioGuide.text)} />
+          <AudioGuide src={e.audioGuide.src} title={L(e.title)} text={L(e.audioGuide.text)} />
         </CardBody></Card>}
         <Card class="w-aside__card"><CardBody>
           <h2 class="w-h4">{t('w.a.facts')}</h2>

@@ -5,7 +5,8 @@ import { useClient } from '../../kernel/client.jsx';
 import { useStore, getState } from '../../kernel/store.js';
 import { languages } from '../../kernel/i18n.js';
 import { ROLES } from '../../kernel/api.js';
-import { clsx, deepClone, matches, fmtDateTime } from '../../kernel/util.js';
+import { clsx, deepClone, matches, fmtDateTime, fmtDuration } from '../../kernel/util.js';
+import { uploadMedia, mediaItem, mediaUrl, mediaRef, isMediaRef, MEDIA_ACCEPT, fmtSize } from '../../kernel/media.js';
 import { Icon, Button, IconButton, Modal, Input, Textarea, Select, Switch, Checkbox, SearchInput, Empty, Tag, Notice } from '../../ui/components.jsx';
 import { Illustration, ILLUSTRATION_IDS } from '../../ui/illustrations.jsx';
 
@@ -95,7 +96,9 @@ export function FormField({ f, draft, set }) {
     case 'switch': return <FieldBox span={f.span} hint={f.hint}><Switch label={f.label} checked={f.invert ? v === false : !!v} onChange={(e) => up(f.invert ? !e.currentTarget.checked ? false : true : e.currentTarget.checked)} /></FieldBox>;
     case 'checks': { const os = optList(f.opts, draft); const arr = v || []; return <FieldBox label={f.label} hint={f.hint} span={f.span ?? true}><div class="c-checks">{os.map((o) => <Checkbox key={o.id} label={o.label} checked={arr.includes(o.id)} onChange={(e) => up(e.currentTarget.checked ? [...arr, o.id] : arr.filter((x) => x !== o.id))} />)}{!os.length && <span class="c-muted">Brak pozycji.</span>}</div></FieldBox>; }
     case 'tags': input = <Input value={(v || []).join(', ')} placeholder="np. historia, architektura" onChange={(e) => up(e.currentTarget.value.split(',').map((x) => x.trim()).filter(Boolean))} />; break;
-    case 'image': return <FieldBox label={f.label} hint={f.hint} span={f.span}><MediaSource ill={v} src={f.srcKey ? getIn(draft, f.srcKey) : null} allowLib={!!f.srcKey} onChange={({ ill, src }) => { set(f.k, ill); if (f.srcKey) set(f.srcKey, src || null); }} /></FieldBox>;
+    case 'image': { // ilustracja systemowa albo zdjęcie z biblioteki („media:<id>” w tym samym polu); dawne pole srcKey (id pliku) jest przenoszone do ill
+      const old = f.srcKey ? getIn(draft, f.srcKey) : null; const val = !isMediaRef(v) && old && mediaItem(old) ? mediaRef(old) : v;
+      return <MediaPicker label={f.label} hint={f.hint} kind="image" illustration value={val} fallbackIll={f.fallback || 'hall-exterior'} testid={`mp-${f.k}`} onChange={(ref) => { set(f.k, ref); if (f.srcKey && old) set(f.srcKey, null); }} />; }
     case 'custom': return <FieldBox label={f.label} hint={f.hint} span={f.span ?? true}>{f.render(draft, set)}</FieldBox>;
     default: input = <Input value={v ?? ''} placeholder={f.placeholder} onInput={(e) => up(e.currentTarget.value)} />;
   }
@@ -111,22 +114,88 @@ export function useDraft(init = null) {
   return [draft, setDraft, set];
 }
 
-/* ── wybór obrazu: ilustracja systemowa albo plik z biblioteki mediów ── */
-export function MediaSource({ ill, src, onChange, allowLib = true }) {
-  const s = useStore(); const [open, setOpen] = useState(false); const [tab, setTab] = useState(src ? 'lib' : 'ill');
-  const lib = s.media.filter((m) => m.dataUrl); const cur = src ? s.media.find((m) => m.id === src) : null;
-  return (<div class="c-msrc">
-    <button type="button" class="c-msrc__btn" onClick={() => setOpen(true)} aria-label="Wybierz obraz">
-      <span class="c-thumb">{cur?.dataUrl ? <img src={cur.dataUrl} alt="" /> : <Illustration id={ill || 'hall-exterior'} />}</span>
-      <span><b>{cur ? cur.name : ill || '— wybierz —'}</b><small>{cur ? 'plik z biblioteki mediów' : 'ilustracja systemowa'}</small></span><Icon name="edit" size={15} />
-    </button>
-    <Modal open={open} onClose={() => setOpen(false)} title="Wybór obrazu" size="lg">
-      {allowLib && <div class="c-seg">{[['ill', 'Ilustracje systemowe'], ['lib', `Biblioteka mediów (${lib.length})`]].map(([id, l]) => <button key={id} type="button" class={tab === id ? 'is-on' : ''} onClick={() => setTab(id)}>{l}</button>)}</div>}
-      {tab === 'ill' || !allowLib ? <div class="c-illgrid">{ILLUSTRATION_IDS.map((id) => <button key={id} type="button" class={clsx('c-illgrid__it', !src && ill === id && 'is-on')} onClick={() => { onChange({ ill: id, src: null }); setOpen(false); }}><span class="c-thumb"><Illustration id={id} /></span><small>{id}</small></button>)}</div>
-        : lib.length ? <div class="c-illgrid">{lib.map((m) => <button key={m.id} type="button" class={clsx('c-illgrid__it', src === m.id && 'is-on')} onClick={() => { onChange({ ill: ill || 'hall-exterior', src: m.id }); setOpen(false); }}><span class="c-thumb"><img src={m.dataUrl} alt="" /></span><small>{m.name}</small></button>)}</div>
-          : <Empty icon="image" title="Biblioteka mediów jest pusta" text="Wgraj obraz w sekcji Treści → Biblioteka mediów." />}
+/* ── pliki z biblioteki mediów: miniatura, wgrywanie z postępem, wybór (MediaPicker) ── */
+export const KIND = { image: { label: 'Zdjęcie', noun: 'zdjęcie', icon: 'image' }, video: { label: 'Wideo', noun: 'film', icon: 'video' }, audio: { label: 'Audio', noun: 'nagranie', icon: 'volume' } };
+const NONE_TXT = { image: 'Nie wybrano zdjęcia', video: 'Brak pliku – odtwarzana jest symulacja', audio: 'Brak nagrania – czyta lektor (synteza mowy)' };
+/** Krótki opis pozycji: rodzaj · rozmiar · wymiary / długość. */
+export const mediaMeta = (m) => [KIND[m.type]?.label || m.type, m.size ? fmtSize(m.size) : null, m.w && m.h ? `${m.w}×${m.h}` : null, m.durationSec ? fmtDuration(m.durationSec) : null, m.stored === 'session' ? 'tylko ta karta' : null].filter(Boolean).join(' · ');
+/** Miniatura pozycji biblioteki: obraz / pierwsza klatka filmu / ikona (audio). */
+export function MediaThumb({ m, size, class: cls }) {
+  const ok = m && (m.type === 'image' || m.type === 'video') && mediaUrl(m);
+  return (<span class={clsx('c-thumb', size === 'sm' && 'c-thumb--sm', !ok && 'c-thumb--icon', cls)}>
+    {ok ? <Illustration id={mediaRef(m.id)} title="" /> : <Icon name={KIND[m?.type]?.icon || 'file'} size={size === 'sm' ? 18 : 24} />}
+    {m?.type === 'video' && ok && <i class="c-thumb__badge"><Icon name="play" size={11} /></i>}
+    {m?.durationSec ? <i class="c-thumb__dur">{fmtDuration(m.durationSec)}</i> : null}
+  </span>);
+}
+/** Kolejka wgrywania (uploadMedia, pliki po kolei) → { queue, run(files, onItem), clear } */
+export function useUploads() {
+  const { api } = useClient(); const [queue, setQueue] = useState([]);
+  const upd = (key, p) => setQueue((a) => a.map((x) => (x.key === key ? { ...x, ...p } : x)));
+  const run = async (files, onItem) => {
+    const list = Array.from(files || []).map((f, i) => ({ key: `${Date.now().toString(36)}-${i}-${f.name}`, f }));
+    setQueue((a) => [...list.map(({ key, f }) => ({ key, name: f.name, size: f.size, p: 0, status: 'wait' })), ...a.filter((x) => x.status !== 'ok')].slice(0, 20));
+    const out = [];
+    for (const { key, f } of list) {
+      upd(key, { status: 'up' });
+      const r = await uploadMedia(f, { api, onProgress: (p) => upd(key, { p }) });
+      if (r.ok) { upd(key, { status: 'ok', p: 1, id: r.item.id, note: r.item.note }); onItem?.(r.item); } else upd(key, { status: 'err', msg: r.message?.pl || 'Nie udało się wgrać pliku.' });
+      out.push(r);
+    }
+    return out;
+  };
+  return { queue, run, clear: () => setQueue((a) => a.filter((x) => x.status === 'up' || x.status === 'wait')) };
+}
+export function UploadQueue({ queue, onClear }) {
+  if (!queue.length) return null;
+  const busy = queue.some((x) => x.status === 'up' || x.status === 'wait');
+  return (<ul class="c-upq" data-testid="media-queue" aria-live="polite">
+    {queue.map((x) => (<li key={x.key} class={`is-${x.status}`} data-status={x.status}>
+      <Icon name={{ ok: 'circleCheck', err: 'circleAlert', up: 'upload', wait: 'clock' }[x.status]} size={16} />
+      <span class="c-upq__n"><b>{x.name}</b><small>{x.status === 'err' ? x.msg : x.status === 'ok' ? `Wgrano · ${fmtSize(x.size)}${x.note ? ' · ' + x.note : ''}` : x.status === 'up' ? `Wysyłanie… ${Math.round(x.p * 100)}% · ${fmtSize(x.size)}` : 'W kolejce'}</small></span>
+      {x.status !== 'err' && <span class="c-upq__bar" role="progressbar" aria-label={x.name} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(x.p * 100)}><i style={{ width: `${Math.round(x.p * 100)}%` }} /></span>}
+    </li>))}
+    {!busy && onClear && <li class="c-upq__clr"><Button size="sm" variant="ghost" icon="close" onClick={onClear}>Wyczyść listę</Button></li>}
+  </ul>);
+}
+/**
+ * Wybór pliku z biblioteki mediów: <MediaPicker kind="image"|"video"|"audio" value onChange(ref|null, item) label hint illustration fallbackIll />
+ * value – „media:<id>” (lub sam identyfikator); noneText – opis stanu bez pliku; illustration – pole może też wskazywać ilustrację systemową (wtedy „Usuń powiązanie” wraca do ilustracji).
+ */
+export function MediaPicker({ kind = 'image', value, onChange, label, hint, illustration = false, fallbackIll = 'hall-exterior', testid, noneText }) {
+  const s = useStore(); const [open, setOpen] = useState(null); const [q, setQ] = useState(''); const up = useUploads();
+  const [prevIll, setPrevIll] = useState(!isMediaRef(value) && value ? value : null);
+  const cur = value && (isMediaRef(value) || !illustration) ? mediaItem(value) : null; const missing = value && isMediaRef(value) && !cur;
+  const ill = illustration && value && !isMediaRef(value) ? value : null;
+  const choose = (m) => { if (ill) setPrevIll(ill); onChange(mediaRef(m.id), m); setOpen(null); };
+  const unlink = () => onChange(illustration ? prevIll || fallbackIll : null, null);
+  const lib = s.media.filter((m) => m.type === kind && matches(q, m.name, (m.tags || []).join(' ')));
+  const k = KIND[kind] || KIND.image;
+  const box = (<div class={clsx('c-mpick', (cur || ill) && 'has-value')} data-testid={testid} data-kind={kind}>
+    <div class="c-mpick__cur">
+      {cur ? <MediaThumb m={cur} /> : ill ? <span class="c-thumb"><Illustration id={ill} /></span> : <span class="c-thumb c-thumb--icon"><Icon name={missing ? 'circleAlert' : k.icon} size={24} /></span>}
+      <span class="c-mpick__txt"><b>{cur ? cur.name : ill ? `Ilustracja: ${ill}` : missing ? 'Plik usunięty z biblioteki' : noneText || NONE_TXT[kind]}</b>
+        <small>{cur ? mediaMeta(cur) : ill ? 'ilustracja systemowa – możesz zastąpić ją zdjęciem' : missing ? 'wyświetlana jest ilustracja / symulacja' : `wybierz ${k.noun} z biblioteki lub wgraj nowy plik`}</small></span>
+    </div>
+    <div class="c-mpick__act">
+      <Button size="sm" variant="secondary" icon="folder" onClick={() => setOpen('lib')} data-testid={testid && `${testid}-lib`}>Wybierz z biblioteki</Button>
+      <label class="fpz-btn fpz-btn--secondary fpz-btn--sm c-filebtn"><Icon name="upload" size={15} />Wgraj nowy
+        <input type="file" accept={MEDIA_ACCEPT[kind]} class="c-sr" data-testid={testid && `${testid}-file`} onChange={(e) => { const f = e.currentTarget.files; up.run(f, (m) => { if (m.type === kind) choose(m); }); e.currentTarget.value = ''; }} /></label>
+      {illustration && <Button size="sm" variant="ghost" icon="image" onClick={() => setOpen('ill')}>Ilustracja…</Button>}
+      {(cur || missing) && <Button size="sm" variant="ghost" icon="close" onClick={unlink} data-testid={testid && `${testid}-clear`}>Usuń powiązanie</Button>}
+    </div>
+    <UploadQueue queue={up.queue.filter((x) => x.status !== 'ok')} />
+    {up.queue.some((x) => x.status === 'err') && <Button size="sm" variant="ghost" icon="close" onClick={up.clear}>Ukryj komunikaty</Button>}
+    <Modal open={!!open} onClose={() => setOpen(null)} size="lg" title={open === 'ill' ? 'Ilustracje systemowe' : `Biblioteka mediów – ${KIND[kind]?.label.toLowerCase()}`}>
+      {open === 'ill' ? <div class="c-illgrid">{ILLUSTRATION_IDS.map((id) => <button key={id} type="button" class={clsx('c-illgrid__it', ill === id && 'is-on')} onClick={() => { setPrevIll(id); onChange(id, null); setOpen(null); }}><span class="c-thumb"><Illustration id={id} /></span><small>{id}</small></button>)}</div>
+        : <>
+          <div class="c-toolbar"><SearchInput value={q} onInput={setQ} placeholder="Szukaj w bibliotece" /><span class="c-grow" /><span class="c-count">{lib.length} plików</span></div>
+          {lib.length ? <div class="c-illgrid c-illgrid--lib">{lib.map((m) => <button key={m.id} type="button" class={clsx('c-illgrid__it', cur?.id === m.id && 'is-on')} onClick={() => choose(m)} data-media={m.id}><MediaThumb m={m} /><small title={m.name}>{m.name}</small><small class="c-muted">{mediaMeta(m)}</small></button>)}</div>
+            : <Empty icon={k.icon} title={s.media.some((m) => m.type === kind) ? 'Brak plików spełniających kryteria' : `W bibliotece nie ma jeszcze plików: ${KIND[kind]?.label.toLowerCase()}`} text="Użyj przycisku „Wgraj nowy” albo sekcji Treści → Biblioteka mediów." />}
+        </>}
     </Modal>
   </div>);
+  return label || hint ? <FieldBox label={label} hint={hint} span>{box}</FieldBox> : box;
 }
 
 /* ── generyczny CRUD kolekcji ── */

@@ -5,7 +5,7 @@ import { getState } from '../../kernel/store.js';
 import { sel } from '../../kernel/api.js';
 import { ago } from '../../kernel/util.js';
 import { Icon, Button, Modal, Tag, Notice, Empty } from '../../ui/components.jsx';
-import { useX, POWER, KINDS, SCHED_KINDS, PowerBadge, Head, Panel, toMin, fromMin, inWindow, targetsLabel, devName } from './common.jsx';
+import { useX, POWER, KINDS, SCHED_KINDS, PowerBadge, Head, Panel, toMin, fromMin, inWindow, targetsLabel, devName, linkOf, LinkBadge, PresenceHelp, PAGE_KINDS, isClosed, incOrigin, ORIGIN } from './common.jsx';
 
 const ORDER = ['network', 'server', 'light', 'audio', 'projector', 'lcd', 'kiosk'];
 
@@ -16,6 +16,7 @@ export function Dashboard() {
       <PowerHero />
       <ClockPanel />
     </div>
+    <RealLinks />
     <ZoneMap />
     <div class="x-grid2">
       <OpenIncidents />
@@ -78,6 +79,28 @@ function PowerHero() {
   </section>);
 }
 
+/** Stan RZECZYWISTY: ile urządzeń naprawdę się melduje (sygnały z serwera). */
+function RealLinks() {
+  const s = getState(); const { presence, openDevice } = useX();
+  if (presence?.mode !== 'remote') return (<div class="x-reallocal" data-testid="x-real-local"><Notice tone="info" icon="sparkles"><b>Wersja bez serwera – stan urządzeń jest symulowany.</b> Prawdziwy stan połączeń (które kioski i ekrany naprawdę działają) pokazuje panel w wersji serwerowej pod adresem /ekspozycja.</Notice><PresenceHelp mode="local" /></div>);
+  // liczymy urządzenia, które mogą się meldować same (kioski, ekrany, projekcja) oraz każde, które kiedykolwiek przysłało sygnał
+  const all = s.devices.map((d) => ({ d, k: linkOf(presence, d.id) })).filter(({ d, k }) => PAGE_KINDS[d.kind] || (k.state !== 'never' && k.state !== 'loading'));
+  const on = all.filter((x) => x.k.state === 'online'); const off = all.filter((x) => x.k.state !== 'online');
+  const loading = all.some((x) => x.k.state === 'loading');
+  const bad = all.filter((x) => x.k.state === 'online' && ((x.k.page && x.k.page.ver !== s.build) || (x.k.page && x.k.page.fullscreen === false)));
+  return (<Panel title="Stan rzeczywisty – połączenia urządzeń" icon="wifi" class="x-reallinks" actions={<Button size="sm" variant="ghost" icon="refresh" onClick={() => presence.refresh()}>Odśwież</Button>}>
+    <div class="x-reallinks__row">
+      <div class={`x-realcount${on.length ? ' is-on' : ''}`}><span class="x-lbl">Podłączone naprawdę</span><b data-testid="x-real-count">{loading ? '…' : `${on.length} z ${all.length}`}</b><small>kioski, ekrany i projekcja wysyłające sygnał w ciągu {Math.round((presence.staleMs || 100000) / 1000)} s</small></div>
+      <div class="x-reallinks__list">
+        {off.length ? <><span class="x-lbl">Bez sygnału ({off.length})</span><ul class="x-list x-list--tight" data-testid="x-real-off">{off.map(({ d, k }) => <li key={d.id}><button type="button" class="x-link" onClick={() => openDevice(d.id)}><Icon name={KINDS[d.kind]?.icon} size={14} />{d.id}</button><span class="x-grow x-muted x-small">{d.name}</span><LinkBadge link={k} /></li>)}</ul></>
+          : <p class="x-ok"><Icon name="circleCheck" size={16} />Wszystkie urządzenia z własną stroną są podłączone.</p>}
+        {bad.length > 0 && <Notice tone="warn">Uwaga: {bad.map((x) => x.d.id).join(', ')} – {bad.some((x) => x.k.page.ver !== s.build) ? 'nieaktualna wersja aplikacji' : ''}{bad.some((x) => x.k.page.ver !== s.build) && bad.some((x) => x.k.page.fullscreen === false) ? ' / ' : ''}{bad.some((x) => x.k.page.fullscreen === false) ? 'strona nie w trybie pełnoekranowym' : ''}.</Notice>}
+      </div>
+    </div>
+    <PresenceHelp mode="remote" />
+  </Panel>);
+}
+
 function ClockPanel() {
   const { api } = useClient(); const s = getState(); const { can } = useX();
   const sim = s.env.simTime; const cur = toMin(sel.clock());
@@ -118,10 +141,10 @@ function ZoneMap() {
 
 function OpenIncidents() {
   const s = getState(); const { go, openDevice } = useX();
-  const open = s.incidents.filter((i) => i.status !== 'closed');
+  const open = s.incidents.filter((i) => !isClosed(i));
   return (<Panel title="Otwarte awarie" icon="alert" actions={<Button size="sm" variant="ghost" iconRight="arrowRight" onClick={() => go('incidents')}>Awarie i SLA</Button>}>
     {open.length ? <ul class="x-list">{open.map((i) => { const sla = sel.incidentSla(i); return (
-      <li key={i.id}><Tag tone={['P1', 'P2'].includes(i.severity) ? 'danger' : 'warn'}>{i.severity}</Tag><button type="button" class="x-link" onClick={() => openDevice(i.deviceId)}>{devName(i.deviceId)}</button><span class="x-grow">{i.title}</span><span class={sla.fixBreached ? 'x-bad' : 'x-muted'}>{ago(i.createdAt)}</span></li>); })}</ul>
+      <li key={i.id}><Tag tone={['P1', 'P2'].includes(i.severity) ? 'danger' : 'warn'}>{i.severity}</Tag><button type="button" class="x-link" onClick={() => openDevice(i.deviceId)}>{devName(i.deviceId)}</button><span class="x-grow">{i.title}{incOrigin(i) === 'auto' && <small class="x-muted"> · {ORIGIN.auto.short}</small>}</span><span class={sla.fixBreached ? 'x-bad' : 'x-muted'}>{ago(i.createdAt)}</span></li>); })}</ul>
       : <Empty icon="circleCheck" title="Brak otwartych zgłoszeń" text="Wszystkie stanowiska pracują bez zgłoszonych usterek." />}
   </Panel>);
 }

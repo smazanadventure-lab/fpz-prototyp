@@ -1,10 +1,11 @@
 // System Zarządzania Ekspozycją i Infrastrukturą IT (końcówka „mgmt”).
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
+import { usePresence } from '../../kernel/presence.js';
 import { Client, useClient } from '../../kernel/client.jsx';
 import { getState } from '../../kernel/store.js';
 import { sel, makeApi, ROLES } from '../../kernel/api.js';
 import { Icon, Button, Logo, ScaleBox, Field, Input, Notice, Tag } from '../../ui/components.jsx';
-import { XCtx, useTick } from './common.jsx';
+import { XCtx, useTick, isClosed } from './common.jsx';
 import { Dashboard } from './dashboard.jsx';
 import { Devices, DeviceModal } from './devices.jsx';
 import { Playlists } from './playlists.jsx';
@@ -78,8 +79,12 @@ function App({ touch }) {
   const section = SECTIONS.find((x) => x.id === client.xSection) || SECTIONS[0];
   const can = (p) => sel.can(staff, p);
   const go = (id) => { set({ xSection: id }); setNavOpen(false); };
-  const ctx = { go, openDevice: setDev, can, touch };
-  const openInc = s.incidents.filter((i) => i.status !== 'closed').length;
+  // stan rzeczywisty: sygnały urządzeń z serwera (w wersji jednoplikowej mode = 'local')
+  const pr = usePresence(); const skew = useRef(0); const seenNow = useRef(0);
+  if (pr.now !== seenNow.current) { seenNow.current = pr.now; skew.current = pr.mode === 'remote' && pr.beats ? pr.now - Date.now() : 0; }
+  const presence = { ...pr, skew: skew.current };
+  const ctx = { go, openDevice: setDev, can, touch, presence };
+  const openInc = s.incidents.filter((i) => !isClosed(i)).length;
   const av = sel.availability();
   const C = section.C;
   return (<XCtx.Provider value={ctx}>

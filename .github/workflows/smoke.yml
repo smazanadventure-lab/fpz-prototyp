@@ -37,3 +37,23 @@ jobs:
           echo "$app" | grep -q '"entries"' || { echo "::error::brak danych w /api/sync"; exit 1; }
           if echo "$app" | grep -q '"staff"'; then echo "::error::widok aplikacji zawiera dane zaplecza"; exit 1; fi
           echo "::notice::Widok aplikacji: dane publiczne są, danych zaplecza brak"
+
+      - name: Pliki multimedialne i sygnały urządzeń
+        run: |
+          id="m-smoke-${{ github.run_id }}"
+          printf 'FPZ-SMOKE-0123456789' > part.bin
+          up=$(curl -s -X POST --data-binary @part.bin "$BASE/api/media/$id?part=0&parts=1&size=20&type=image/png&name=smoke.png")
+          echo "$up" | grep -q '"done":true' || { echo "::error::wgranie pliku: $up"; exit 1; }
+          rng=$(curl -s -o out.bin -w '%{http_code}' -H 'Range: bytes=4-8' "$BASE/api/media/$id")
+          [ "$rng" = "206" ] && [ "$(cat out.bin)" = "SMOKE" ] || { echo "::error::odczyt zakresu: HTTP $rng, treść '$(cat out.bin)'"; fail=1; }
+          curl -s -X DELETE "$BASE/api/media/$id" > /dev/null
+          gone=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/media/$id")
+          [ "$gone" = "404" ] || { echo "::error::plik testowy nie został usunięty (HTTP $gone)"; fail=1; }
+          beat=$(curl -s -X POST -H 'content-type: application/json' -d '{"id":"SMOKE-TEST","src":"page","kind":"test"}' "$BASE/api/beat")
+          echo "$beat" | grep -q '"ok":true' || { echo "::error::sygnał urządzenia: $beat"; fail=1; }
+          pres=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/presence")
+          dev=$(curl -s "$BASE/api/device/TZ.T1.1")
+          echo "$dev" | grep -q '"power"' || { echo "::error::stan urządzenia: $dev"; fail=1; }
+          [ "$pres" = "200" ] || { echo "::error::/api/presence zwraca $pres"; fail=1; }
+          echo "::notice::Pliki (wgranie, zakres 206, usunięcie) i sygnały urządzeń: $([ -z "$fail" ] && echo 'działają' || echo 'są błędy'); urządzenie TZ.T1.1: $dev"
+          [ -z "$fail" ]

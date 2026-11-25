@@ -5,7 +5,9 @@ import { useStore, getState } from '../../kernel/store.js';
 import { sel, ROLES } from '../../kernel/api.js';
 import { deepClone, matches, download, dayStr, fmtDateTime, clsx } from '../../kernel/util.js';
 import { Icon, Button, IconButton, Input, Select, Checkbox, SearchInput, Tag, Notice, Logo, Field } from '../../ui/components.jsx';
-import { useCms, useRun, useDraft, DataTable, Crud, Form, FieldBox, Head, When, PERM_LABEL, roleName } from './kit.jsx';
+import { useCms, useRun, useDraft, DataTable, Crud, Form, FieldBox, Head, When, PERM_LABEL, roleName, MediaPicker } from './kit.jsx';
+import { SOUND_TRACKS } from '../../ui/media.jsx';
+import { mediaItem } from '../../kernel/media.js';
 import { readFile, fmtSize, imgLimit, isRemote } from './content.jsx';
 
 export function Identity() {
@@ -25,6 +27,22 @@ export function Identity() {
       </section>
       <section class="c-panel"><h3>Zastosowanie</h3><ul class="c-links"><li><Icon name="phone" size={14} /> aplikacja mobilna – nagłówek i ekran startowy</li><li><Icon name="globe" size={14} /> strona WWW / PWA – nagłówek i stopka</li><li><Icon name="monitor" size={14} /> kioski 55″ – nagłówek z pasem identyfikacji</li><li><Icon name="tv" size={14} /> ekrany LCD – plansze informacyjne</li><li><Icon name="ticket" size={14} /> e-maile z biletami (wersja docelowa)</li></ul></section>
     </div>
+  </div>);
+}
+
+/** Dźwięki miasta (kiosk TZ.T1.5): plik audio dla każdej ścieżki → settings.sounds = { [idŚcieżki]: 'media:<id>' }. */
+export function Sounds() {
+  const s = useStore(); const { api } = useClient(); const run = useRun(); const cur = s.settings.sounds || {};
+  const setTrack = (id, ref) => { const next = { ...cur }; if (ref) next[id] = ref; else delete next[id]; const name = SOUND_TRACKS.find((t) => t.id === id)?.name.pl;
+    run(api.cms.setSetting({ sounds: next }), ref ? `Ścieżka „${name}” odtwarza teraz nagranie` : `Ścieżka „${name}” wraca do dźwięku syntezowanego`); };
+  const n = SOUND_TRACKS.filter((t) => cur[t.id] && mediaItem(cur[t.id])).length;
+  return (<div class="c-page"><Head title="Dźwięki miasta – kiosk TZ.T1.5" sub="Nagrania odtwarzane w słuchawce kiosku „Dźwięki miasta” – po jednym pliku audio na ścieżkę (przyciski fizyczne zmieniają ścieżkę)" />
+    <Notice tone="info" icon="headphones">Ścieżka z nagraniem odtwarza plik w pętli z głośnością ustawioną dla kiosku (Zarządzanie ekspozycją); ścieżka bez nagrania – dźwięk syntezowany w przeglądarce. Przypisane nagrania: <b>{n} z {SOUND_TRACKS.length}</b>. Zalecany format: MP3 lub M4A, nagranie zapętlające się bez przerwy, 1–5 min.</Notice>
+    <section class="c-panel"><ol class="c-sounds">{SOUND_TRACKS.map((t, i) => (<li key={t.id} data-track={t.id}>
+      <span class="c-sounds__no">{i + 1}</span>
+      <div class="c-sounds__txt"><b>{t.name.pl}</b> <span class="c-muted c-small">/ {t.name.en}</span><p class="c-small c-muted">{t.desc.pl}</p></div>
+      <MediaPicker kind="audio" value={cur[t.id]} noneText="Brak nagrania – dźwięk syntezowany" testid={`mp-sound-${t.id}`} onChange={(ref) => setTrack(t.id, ref)} />
+    </li>))}</ol></section>
   </div>);
 }
 

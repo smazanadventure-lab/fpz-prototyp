@@ -1,6 +1,12 @@
 // Test scenariusza CMS: role, workflow publikacji, QR, BLE, misje, wydarzenie z biletem, zwrot, zapytanie, moderacja, język, push, logo, media, eksport.
 import zlib from 'node:zlib';
 
+function wav(sec, rate = 8000) { // krótki dźwięk WAV (sinus 440 Hz, 8 bit) generowany w teście
+  const n = Math.round(sec * rate); const b = Buffer.alloc(44 + n);
+  b.write('RIFF', 0); b.writeUInt32LE(36 + n, 4); b.write('WAVE', 8); b.write('fmt ', 12); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(rate, 24); b.writeUInt32LE(rate, 28); b.writeUInt16LE(1, 32); b.writeUInt16LE(8, 34); b.write('data', 36); b.writeUInt32LE(n, 40);
+  for (let i = 0; i < n; i++) b[44 + i] = 128 + Math.round(90 * Math.sin((2 * Math.PI * 440 * i) / rate));
+  return b;
+}
 function png(w, h) { // mały PNG (zielone tło + jaśniejszy pasek) generowany w teście
   const crcT = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
   const crc = (b) => { let c = 0xffffffff; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
@@ -161,9 +167,11 @@ export default async (page, { shot, errors }) => {
   check((await S(() => window.__fpzCms.getState().settings.logo || '')).startsWith('data:image/png'), 'wgrano logotyp (dataUrl)');
   await shot('cms-logo');
   await nav('Treści'); await sub('Biblioteka mediów');
-  await page.setInputFiles('[data-testid=media-upload]', [{ name: 'zdjecie-hali.png', mimeType: 'image/png', buffer: png(320, 200) }, { name: 'nagranie.mp3', mimeType: 'audio/mpeg', buffer: Buffer.alloc(2048) }]); await wait(500);
-  const md = await S(() => window.__fpzCms.getState().media.map((m) => ({ type: m.type, hasData: !!m.dataUrl })));
-  check(md.length === 2 && md.some((m) => m.type === 'image' && m.hasData) && md.some((m) => m.type === 'audio' && !m.hasData), 'biblioteka mediów: obraz (dataUrl) + audio (metadane)');
+  await page.setInputFiles('[data-testid=media-upload]', [{ name: 'zdjecie-hali.png', mimeType: 'image/png', buffer: png(320, 200) }, { name: 'nagranie.wav', mimeType: 'audio/wav', buffer: wav(1.5) }, { name: 'uszkodzone.mp3', mimeType: 'audio/mpeg', buffer: Buffer.alloc(2048) }]);
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid=media-queue] li[data-status=ok], [data-testid=media-queue] li[data-status=err]').length === 3, null, { timeout: 15000 });
+  const md = await S(() => window.__fpzCms.getState().media.map((m) => ({ type: m.type, hasData: !!m.dataUrl, stored: m.stored, dur: m.durationSec })));
+  check(md.length === 2 && md.some((m) => m.type === 'image' && m.hasData) && md.some((m) => m.type === 'audio' && m.stored === 'session' && m.dur === 2), 'biblioteka mediów (wersja jednoplikowa): obraz (dataUrl) + nagranie (plik w tej karcie)');
+  check(/nie potrafi odtworzyć/.test(await page.locator('[data-testid=media-queue] li[data-status=err]').innerText()), 'biblioteka mediów: uszkodzony plik odrzucony z komunikatem');
   await shot('cms-media');
   await nav('Ustawienia'); await sub('Kopia danych');
   const [bk] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("Eksportuj kopię")')]);

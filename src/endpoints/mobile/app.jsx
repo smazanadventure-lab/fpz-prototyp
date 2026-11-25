@@ -4,6 +4,7 @@ import { useClient, useEnv } from '../../kernel/client.jsx';
 import { strings } from '../../kernel/i18n.js';
 import { sel, makeApi } from '../../kernel/api.js';
 import { getState } from '../../kernel/store.js';
+import { mediaUrl } from '../../kernel/media.js';
 import { clsx } from '../../kernel/util.js';
 import { speak, stopSpeaking, estimateSeconds } from '../../ui/speech.js';
 import { Icon } from '../../ui/components.jsx';
@@ -85,17 +86,27 @@ export function App({ platform, standalone }) {
   const toTabRoot = (tab, after) => { setNavHidden(false); setDrawer(false); setNav((n) => ({ ...n, tab, anim: 'tab', visited: n.visited.includes(tab) ? n.visited : [...n.visited, tab], stacks: { ...n.stacks, [tab]: n.stacks[tab].slice(0, 1) } })); after?.(); };
 
   // audioprzewodnik – kolejka wpisów
+  const recRef = useRef(null);
+  const stopRec = () => { const r = recRef.current; if (r) { r.onended = null; r.onerror = null; try { r.pause(); } catch { /* nic */ } recRef.current = null; } };
   const playAudio = (ids, i = 0) => {
     const e = sel.entry(ids[i]); if (!e?.audioGuide) return; const text = L(e.audioGuide.text); const tok = ++audioTok.current;
-    stopSpeaking();
+    stopSpeaking(); stopRec();
     setAudio({ ids, i, playing: true, startedAt: Date.now(), dur: estimateSeconds(text), open: true });
-    speak(text, { lang, onend: (fin) => { if (tok !== audioTok.current) return; if (fin && i + 1 < ids.length && getState().clients.mobile?.audioQueue !== false) playAudio(ids, i + 1); else setAudio((a) => ({ ...a, playing: false })); } });
+    const done = (fin) => { if (tok !== audioTok.current) return; if (fin && i + 1 < ids.length && getState().clients.mobile?.audioQueue !== false) playAudio(ids, i + 1); else setAudio((a) => ({ ...a, playing: false })); };
+    // prawdziwe nagranie lektora (plik podpięty w CMS) – gdy go nie ma albo nie da się odtworzyć, czyta syntezator mowy
+    const url = mediaUrl(e.audioGuide.src);
+    if (url) {
+      const rec = new Audio(url); recRef.current = rec; let failed = false;
+      const fallback = () => { if (failed || tok !== audioTok.current) return; failed = true; recRef.current = null; speak(text, { lang, onend: done }); };
+      rec.onloadedmetadata = () => { if (tok === audioTok.current && Number.isFinite(rec.duration)) setAudio((a) => ({ ...a, dur: Math.max(1, Math.round(rec.duration)) })); };
+      rec.onended = () => done(true); rec.onerror = fallback; rec.play().catch(fallback);
+    } else speak(text, { lang, onend: done });
   };
   const audioCtl = {
     ...audio, play: playAudio,
-    toggle: () => { if (audio.playing) { audioTok.current++; stopSpeaking(); setAudio((a) => ({ ...a, playing: false })); } else playAudio(audio.ids, audio.i); },
+    toggle: () => { if (audio.playing) { audioTok.current++; stopSpeaking(); stopRec(); setAudio((a) => ({ ...a, playing: false })); } else playAudio(audio.ids, audio.i); },
     next: () => audio.i + 1 < audio.ids.length && playAudio(audio.ids, audio.i + 1), prev: () => audio.i > 0 && playAudio(audio.ids, audio.i - 1),
-    close: () => { audioTok.current++; stopSpeaking(); setAudio({ ids: [], i: 0, playing: false, startedAt: 0, dur: 0, open: false }); },
+    close: () => { audioTok.current++; stopSpeaking(); stopRec(); setAudio({ ids: [], i: 0, playing: false, startedAt: 0, dur: 0, open: false }); },
   };
 
   const app = {

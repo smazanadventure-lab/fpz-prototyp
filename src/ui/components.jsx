@@ -11,6 +11,7 @@ import { clsx, paragraphs, fmtDuration } from '../kernel/util.js';
 import { useClient, stepFontScale, stopSpeaking } from '../kernel/client.jsx';
 import { useStore } from '../kernel/store.js';
 import { languages } from '../kernel/i18n.js';
+import { mediaItem, mediaRef } from '../kernel/media.js';
 
 /* ── Ikona (zestaw Lucide; lista nazw: ICON_NAMES) ── */
 export const ICON_NAMES = Object.keys(ICONS);
@@ -54,13 +55,15 @@ export function Tag({ tone = 'neutral', icon, children, class: cls }) { return <
 /** Tekst z akapitami (\n\n) i **pogrubieniem**. */
 export function Rich({ text, class: cls }) { return <div class={clsx('fpz-rich', cls)}>{paragraphs(text).map((p, i) => <p key={i}>{p.map((s, j) => (s.b ? <b key={j}>{s.text}</b> : s.text))}</p>)}</div>; }
 /**
- * Obraz: ilustracja systemowa (ill) albo plik wgrany w CMS (src = data URL lub id z biblioteki mediów).
+ * Obraz: ilustracja systemowa (ill), plik z biblioteki mediów (ill = „media:<id>”) albo src (data URL, id lub „media:<id>” pozycji biblioteki).
  * shape: 'rounded' | 'card' | 'plain' | 'arc-tr' | 'arc-tl' | 'arc-br' | 'arc-bl' | 'circle'; ratio np. '16/9'; tone: 'duotone'|'archival'|'color'
  */
 export function Media({ ill, src, tone = 'duotone', ratio = '16/9', shape = 'rounded', alt = '', class: cls, children, style }) {
-  const s = useStore(); const lib = src && !String(src).startsWith('data:') ? s.media.find((m) => m.id === src) : null; const url = lib ? lib.dataUrl : src;
+  useStore(); const raw = src && /^(data:|blob:|https?:)/.test(String(src)) ? src : null;
+  // src: data URL / adres albo pozycja biblioteki (id lub „media:<id>”); obraz lub wideo z biblioteki ma pierwszeństwo przed ilustracją
+  const lib = !raw && src ? mediaItem(src) : null; const fileRef = lib && (lib.type === 'image' || lib.type === 'video') ? mediaRef(lib.id) : null;
   return (<figure class={clsx('fpz-media', shape !== 'rounded' && `fpz-media--${shape}`, cls)} style={{ aspectRatio: ratio || undefined, ...(style || {}) }}>
-    {url ? <img src={url} alt={alt} /> : <Illustration id={ill || lib?.ill || 'hall-exterior'} tone={tone} title={alt} />}
+    {raw ? <img src={raw} alt={alt} /> : <Illustration id={fileRef || ill || 'hall-exterior'} tone={tone} title={alt} />}
     {children && <div class="fpz-media__overlay">{children}</div>}</figure>);
 }
 

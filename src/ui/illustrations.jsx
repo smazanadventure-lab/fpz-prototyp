@@ -2,7 +2,8 @@
 // <Illustration id="lake" tone="duotone"|"archival"|"color" class="…" title="tekst alternatywny" />
 // Kadr 400×300, preserveAspectRatio="slice" – motyw główny w środku (ok. x 90–310, y 85–220), tło wypełnia całość.
 // Styl: płaskie plamy w 5–6 stopniach tonalnych (pal(tone)) + cienka kreska detali (1–1,2 px) w kolorze p.ink.
-import { useMemo } from 'preact/hooks';
+import { useMemo, useState } from 'preact/hooks';
+import { isMediaRef, mediaItem, mediaUrl } from '../kernel/media.js';
 
 export const ILLUSTRATION_IDS = ['hall-exterior', 'hall-interior', 'hall-green', 'passage', 'factory-archival', 'machine-tool', 'workers', 'steelworks', 'mine', 'glassworks', 'railway', 'lake', 'desert', 'wetland', 'forest', 'park', 'tree', 'river', 'quarry', 'church', 'palace', 'city-street', 'city-panorama', 'tower', 'stage', 'market', 'food', 'workshop', 'kids', 'future-city', 'studio', 'map-old'];
 
@@ -855,6 +856,23 @@ const SCENES = {
 let seq = 0;
 /** <Illustration id tone class title /> – SVG wypełniające rodzica (preserveAspectRatio slice). */
 export function Illustration({ id, tone = 'duotone', class: cls, title }) {
+  if (isMediaRef(id)) return <MediaFrame id={id} tone={tone} cls={cls} title={title} />;
+  return <IllustrationSvg id={id} tone={tone} cls={cls} title={title} />;
+}
+/**
+ * Plik z biblioteki mediów („media:<id>”) w kadrze ilustracji: obraz → <img> (object-fit: cover),
+ * wideo → pierwsza klatka filmu; brak pliku / błąd wczytania → ilustracja domyślna.
+ */
+function MediaFrame({ id, tone, cls, title }) {
+  const [bad, setBad] = useState(null); const m = mediaItem(id); const url = m && mediaUrl(m);
+  const c = `fpz-ill fpz-ill--file${cls ? ' ' + cls : ''}`; const alt = title || m?.alt?.pl || m?.name || '';
+  if (url && bad !== url) {
+    if (m.type === 'image') return <img class={c} src={url} alt={alt} loading="lazy" decoding="async" onError={() => setBad(url)} />;
+    if (m.type === 'video') return <video class={c} src={url + '#t=0.5'} muted playsinline preload="metadata" aria-label={alt} role="img" onError={() => setBad(url)} />;
+  }
+  return <IllustrationSvg id="hall-exterior" tone={tone} cls={cls} title={title} />;
+}
+function IllustrationSvg({ id, tone = 'duotone', cls, title }) {
   const u = useMemo(() => `ill${(++seq).toString(36)}-`, []);
   const t = tone === 'archival' || tone === 'color' ? tone : 'duotone';
   const p = pal(t);

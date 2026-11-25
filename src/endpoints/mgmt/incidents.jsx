@@ -5,9 +5,11 @@ import { getState } from '../../kernel/store.js';
 import { sel, SLA } from '../../kernel/api.js';
 import { fmtDateTime, nowIso, uid, download, dayStr } from '../../kernel/util.js';
 import { Icon, Button, Tag, Notice, Empty, Select, Field, Input, Textarea, Modal, Chips, Stat, Checkbox } from '../../ui/components.jsx';
-import { useX, useTick, Head, Panel, devName, fmtLeft, fmtH, csv, KINDS } from './common.jsx';
+import { useX, useTick, Head, Panel, devName, fmtLeft, fmtH, csv, KINDS, isClosed, incOrigin, ORIGIN, OriginTag } from './common.jsx';
 
-const STATUS = { open: { label: 'Nowe', tone: 'danger' }, in_progress: { label: 'W realizacji', tone: 'warn' }, closed: { label: 'Zamknięte', tone: 'green' } };
+const STATUS = { open: { label: 'Nowe', tone: 'danger' }, in_progress: { label: 'W realizacji', tone: 'warn' }, closed: { label: 'Zamknięte', tone: 'green' }, resolved: { label: 'Zamknięte automatycznie', tone: 'green' } };
+/** Zgłoszenie zamknięte przez monitoring serwera po powrocie sygnału ma status 'closed' i znacznik autoClosed. */
+const statusOf = (i) => (i.status === 'closed' && i.autoClosed ? STATUS.resolved : STATUS[i.status] || STATUS.open);
 const sevTone = (p) => (p === 'P1' || p === 'P2' ? 'danger' : p === 'P3' ? 'warn' : 'info');
 
 /** Dostępność w bieżącym miesiącu na podstawie czasu trwania incydentów P1/P2. */
@@ -21,16 +23,16 @@ export function monthAvailability() {
 function rows() {
   const s = getState();
   return [['ID', 'Klasa', 'Urządzenie', 'Opis', 'Źródło', 'Status', 'Zgłoszono', 'Przyjęto', 'Zamknięto', 'Czas usunięcia [h]', 'Reakcja w terminie', 'Usunięcie w terminie', 'Notatka'],
-    ...s.incidents.map((i) => { const x = sel.incidentSla(i); return [i.id, i.severity, devName(i.deviceId), i.title, i.source, STATUS[i.status]?.label, fmtDateTime(i.createdAt), i.reactedAt ? fmtDateTime(i.reactedAt) : '', i.resolvedAt ? fmtDateTime(i.resolvedAt) : '', x.elapsedH.toFixed(2), x.reactH ? (x.reactBreached ? 'NIE' : 'TAK') : 'n/d', x.fixBreached ? 'NIE' : 'TAK', i.note || '']; })];
+    ...s.incidents.map((i) => { const x = sel.incidentSla(i); return [i.id, i.severity, devName(i.deviceId), i.title, ORIGIN[incOrigin(i)].label, statusOf(i).label, fmtDateTime(i.createdAt), i.reactedAt ? fmtDateTime(i.reactedAt) : '', i.resolvedAt ? fmtDateTime(i.resolvedAt) : '', x.elapsedH.toFixed(2), x.reactH ? (x.reactBreached ? 'NIE' : 'TAK') : 'n/d', x.fixBreached ? 'NIE' : 'TAK', i.note || '']; })];
 }
 
 export function Incidents() {
   const s = getState(); const { api, toast, client, set, staff } = useClient(); const { can, openDevice } = useX(); useTick(1000);
   const ok = can('incidents');
   const [f, setF] = useState('open'); const [close, setClose] = useState(null); const [note, setNote] = useState(''); const [rep, setRep] = useState(null); const [print, setPrint] = useState(false); const [bk, setBk] = useState(false);
-  const list = s.incidents.filter((i) => f === 'all' || (f === 'open' ? i.status !== 'closed' : i.status === 'closed'));
+  const list = s.incidents.filter((i) => f === 'all' || (f === 'open' ? !isClosed(i) : isClosed(i)));
   const av = monthAvailability();
-  const open = s.incidents.filter((i) => i.status !== 'closed');
+  const open = s.incidents.filter((i) => !isClosed(i));
   const breached = s.incidents.filter((i) => { const x = sel.incidentSla(i); return x.fixBreached || x.reactBreached; }).length;
   const closed = s.incidents.filter((i) => i.resolvedAt); const mttr = closed.length ? closed.reduce((a, i) => a + sel.incidentSla(i).elapsedH, 0) / closed.length : 0;
   const report = () => { download(`raport-usterek-${dayStr()}.csv`, csv(rows()), 'text/csv;charset=utf-8'); toast('Pobrano raport CSV'); };
@@ -45,7 +47,7 @@ export function Incidents() {
   };
   const lastBk = client.xBackupTest;
   return (<div>
-    <Head title="Awarie i SLA" sub="Zgłoszenia z monitoringu i ręczne, czasy reakcji i usunięcia wg umowy utrzymaniowej" icon="alert">
+    <Head title="Awarie i SLA" sub="Zgłoszenia wykryte automatycznie (brak sygnału z urządzenia), ręczne i symulowane; czasy reakcji i usunięcia wg umowy utrzymaniowej" icon="alert">
       <Button variant="secondary" icon="download" onClick={report} data-testid="x-inc-csv">Raport CSV</Button>
       <Button variant="secondary" icon="printer" onClick={() => setPrint(true)}>Widok do druku</Button>
       <Button icon="plus" disabled={!ok} onClick={() => setRep({ deviceId: s.devices[0].id, title: '', severity: 'P3', stop: false })} data-testid="x-inc-new">Zgłoś usterkę</Button>
@@ -59,22 +61,23 @@ export function Incidents() {
         <small>próg 99,7% · przestój P1/P2: {fmtH(av.downH)} z dopuszczalnych {fmtH(av.allowH)}</small></div>
     </div>
     <Panel title="Zgłoszenia" icon="list" actions={<Chips options={[{ id: 'open', label: `Otwarte (${open.length})` }, { id: 'closed', label: 'Zamknięte' }, { id: 'all', label: 'Wszystkie' }]} value={f} onChange={setF} />}>
+      <p class="x-originlegend"><span>Źródło zgłoszenia:</span><OriginTag inc={{ id: 'inc-mon-' }} /><span>serwer sam zakłada (brak sygnału &gt; 5 min) i zamyka po powrocie połączenia</span><OriginTag inc={{ source: 'zgłoszenie ręczne' }} /><OriginTag inc={{}} /><span>„Symuluj awarię” i dane przykładowe</span></p>
       {list.length ? <div class="x-incs">{list.map((i) => { const x = sel.incidentSla(i); const reactLeft = x.reactDue ? x.reactDue - Date.now() : null; const fixLeft = x.fixDue - Date.now(); return (
-        <article key={i.id} class={`x-inc x-inc--${i.status}`} data-inc={i.id}>
+        <article key={i.id} class={`x-inc x-inc--${isClosed(i) ? 'closed' : i.status} x-inc--o-${incOrigin(i)}`} data-inc={i.id} data-origin={incOrigin(i)}>
           <div class="x-inc__sev"><Tag tone={sevTone(i.severity)}>{i.severity}</Tag><small>{SLA[i.severity]?.label}</small></div>
           <div class="x-inc__main">
             <b>{i.title}</b>
-            <div class="x-inc__meta"><button type="button" class="x-link" onClick={() => openDevice(i.deviceId)}><Icon name={KINDS[s.devices.find((d) => d.id === i.deviceId)?.kind]?.icon || 'monitor'} size={13} />{devName(i.deviceId)}</button><span>{fmtDateTime(i.createdAt)}</span><span>{i.source}</span>{i.assignee && <span>przyjął: {i.assignee}</span>}</div>
-            {i.note && i.status === 'closed' && <small class="x-muted">Notatka: {i.note}</small>}
+            <div class="x-inc__meta"><button type="button" class="x-link" onClick={() => openDevice(i.deviceId)}><Icon name={KINDS[s.devices.find((d) => d.id === i.deviceId)?.kind]?.icon || 'monitor'} size={13} />{devName(i.deviceId)}</button><span>{fmtDateTime(i.createdAt)}</span><OriginTag inc={i} />{i.assignee && <span>przyjął: {i.assignee}</span>}</div>
+            {i.note && isClosed(i) && <small class="x-muted">Notatka: {i.note}</small>}
           </div>
           <div class="x-inc__sla">
             <div class={`x-sla${x.reactBreached ? ' is-bad' : i.reactedAt ? ' is-ok' : ''}`}><span>Reakcja{x.reactH ? ` (${x.reactH} h)` : ''}</span><b>{!x.reactH ? 'w cyklu wdrożeniowym' : i.reactedAt ? (x.reactBreached ? 'po terminie' : 'w terminie') : reactLeft >= 0 ? fmtLeft(reactLeft) : 'przekroczono ' + fmtLeft(-reactLeft)}</b></div>
             <div class={`x-sla${x.fixBreached ? ' is-bad' : i.resolvedAt ? ' is-ok' : ''}`}><span>Usunięcie ({x.fixH} h)</span><b>{i.resolvedAt ? (x.fixBreached ? 'po terminie' : `w ${fmtH(x.elapsedH)}`) : fixLeft >= 0 ? fmtLeft(fixLeft) : 'przekroczono ' + fmtLeft(-fixLeft)}</b></div>
           </div>
           <div class="x-inc__act">
-            <Tag tone={STATUS[i.status].tone}>{STATUS[i.status].label}</Tag>
+            <Tag tone={statusOf(i).tone}>{statusOf(i).label}</Tag>
             {i.status === 'open' && <Button size="sm" variant="secondary" icon="check" disabled={!ok} onClick={() => { api.devices.ackIncident(i.id); toast('Przyjęto zgłoszenie'); }} data-testid="x-inc-ack">Przyjmij</Button>}
-            {i.status !== 'closed' && <Button size="sm" icon="circleCheck" disabled={!ok} onClick={() => { setClose(i); setNote(''); }} data-testid="x-inc-close">Zamknij</Button>}
+            {!isClosed(i) && <Button size="sm" icon="circleCheck" disabled={!ok} onClick={() => { setClose(i); setNote(''); }} data-testid="x-inc-close">Zamknij</Button>}
           </div>
         </article>); })}</div> : <Empty icon="circleCheck" title={f === 'open' ? 'Brak otwartych zgłoszeń' : 'Brak zgłoszeń'} />}
     </Panel>

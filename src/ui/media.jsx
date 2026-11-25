@@ -3,12 +3,13 @@
 // ale komponenty zachowują się jak prawdziwe odtwarzacze. Interfejs zgodny z zaślepką src/ui/stubs/media.jsx.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useClient } from '../kernel/client.jsx';
-import { useStore } from '../kernel/store.js';
+import { useStore, getState } from '../kernel/store.js';
 import { strings } from '../kernel/i18n.js';
 import { clsx, clamp, fmtDuration } from '../kernel/util.js';
 import { speak, stopSpeaking, estimateSeconds } from './speech.js';
 import { Illustration } from './illustrations.jsx';
 import { Icon } from './components.jsx';
+import { mediaItem, mediaUrl } from '../kernel/media.js';
 import './media.css';
 
 strings({
@@ -41,6 +42,10 @@ strings({
   'md.ar.sim': ['Symulacja obrazu z kamery – prototyp', 'Simulated camera view – prototype'],
   'md.ar.today': ['Dziś', 'Today'], 'md.ar.tomorrow': ['Jutro', 'Tomorrow'], 'md.ar.mix': ['Porównanie: dziś – jutro', 'Compare: today – tomorrow'],
   'md.ar.capture': ['Zrób zdjęcie widoku AR', 'Capture the AR view'], 'md.ar.view': ['Widok kamery z rozszerzoną rzeczywistością', 'Camera view with augmented reality'],
+  'md.mute': ['Wycisz', 'Mute'], 'md.unmute': ['Włącz dźwięk', 'Turn sound on'], 'md.fs': ['Pełny ekran', 'Full screen'], 'md.fsExit': ['Zamknij pełny ekran', 'Exit full screen'],
+  'md.fileErr': ['Nie udało się odtworzyć pliku – pokazano symulację', 'The file could not be played – showing a simulation'],
+  'md.audioErr': ['Nie udało się odtworzyć nagrania – czyta lektor (synteza mowy)', 'The recording could not be played – read by speech synthesis'],
+  'md.recording': ['Nagranie lektora', 'Narrator recording'],
   'md.snd.sim': ['Odtwarzanie symulowane – przeglądarka nie obsługuje Web Audio', 'Simulated playback – Web Audio is not available'],
 });
 
@@ -102,8 +107,24 @@ function PjmFigure() {
  *   onOpen() (miniatura compact: klik otwiera pełny odtwarzacz zamiast odtwarzać w miejscu), showTitle=true,
  *   ratio='16/9', showAd=false, showPjm=false, startAt (s), onTime(t)
  */
-export function VideoSim({ video, title, ill, durationSec, captions, live, autoplay, showCaptions = true, onEnded, compact, class: cls,
-  description, kind, ad, loop, muted, chromeless, onOpen, showTitle = true, ratio = '16/9', showAd = false, showPjm = false, startAt = 0, onTime }) {
+export function VideoSim(props) {
+  const { t: tr } = useClient(); useStore();
+  const v = props.video || {}; const isLive = props.live != null ? !!props.live : (props.kind || v.kind) === 'live';
+  const file = isLive ? null : fileOf('video', props.src, v.src, props.ill, v.ill);
+  const [failed, setFailed] = useState(null);
+  if (file && failed !== file.url) return <FileVideo key={file.url} {...props} file={file} onFail={() => setFailed(file.url)} />;
+  // symulacja: ilustracja zamiast odwołania do pliku wideo (kadr filmu nie wczyta się, skoro plik nie działa)
+  const simIll = [props.ill, v.ill].find((x) => x && !(mediaItem(x) && mediaItem(x).type !== 'image')) || 'studio';
+  return <SimVideo {...props} ill={simIll} note={failed ? tr('md.fileErr') : null} />;
+}
+/** Pierwsza pozycja biblioteki danego rodzaju wskazana przez którekolwiek z odwołań (id / „media:<id>”) → { item, url } albo null. */
+function fileOf(kind, ...refs) {
+  for (const r of refs) { if (!r || typeof r !== 'string') continue; const m = mediaItem(r); if (m && m.type === kind) { const url = mediaUrl(m); if (url) return { item: m, url }; } }
+  return null;
+}
+
+function SimVideo({ video, title, ill, durationSec, captions, live, autoplay, showCaptions = true, onEnded, compact, class: cls,
+  description, kind, ad, loop, muted, chromeless, onOpen, showTitle = true, ratio = '16/9', showAd = false, showPjm = false, startAt = 0, onTime, note }) {
   const { t: tr, L } = useClient(); const s = useStore();
   const v = video || {}; const vKind = kind || v.kind; const isLive = live != null ? !!live : vKind === 'live';
   const archive = vKind === 'archive';
@@ -191,6 +212,7 @@ export function VideoSim({ video, title, ill, durationSec, captions, live, autop
             {isLive && !offAir && <><span class="md-video__livebadge"><i />{tr('md.live')}</span><span class="md-video__viewers"><Icon name="eye" size={14} />{tr('md.viewers', { n: s.live.viewers || 0 })}</span></>}
             {archive && v.year && !compact ? <span class="md-video__year">{tr('md.archive')} · {v.year}</span> : null}</div>}
           {showTitle && !compact && ttl && <div class="md-video__title">{ttl}</div>}
+          {note && !compact && <div class="md-video__errnote" role="status"><Icon name="alert" size={14} />{note}</div>}
           {!compact && adOn && !offAir && <div class="md-video__ad" aria-live="polite"><b>AD</b><span>{adText}</span></div>}
         </div>
         {offAir && <div class="md-video__offair"><Icon name="video" size={28} /><span>{tr('md.offAir')}</span></div>}
@@ -218,13 +240,210 @@ export function VideoSim({ video, title, ill, durationSec, captions, live, autop
   );
 }
 
+/**
+ * Odtwarzacz prawdziwego pliku wideo z biblioteki mediów (wywoływany przez VideoSim, gdy src / video.src / ill wskazuje pozycję wideo).
+ * Ten sam kadr i kontrolki co symulacja; czas i długość z elementu <video>; napisy z danych zsynchronizowane z currentTime.
+ * Autoodtwarzanie zablokowane przez przeglądarkę (dźwięk) → start bez dźwięku z widocznym przyciskiem „Włącz dźwięk”.
+ */
+function FileVideo({ video, file, onFail, title, durationSec, captions, autoplay, showCaptions = true, onEnded, compact, class: cls,
+  description, kind, ad, loop, muted, chromeless, onOpen, showTitle = true, ratio = '16/9', showAd = false, showPjm = false, startAt = 0, onTime }) {
+  const { t: tr, L } = useClient();
+  const v = video || {}; const archive = (kind || v.kind) === 'archive';
+  const caps = captions || v.captions || [];
+  const ttl = asText(title, L) || asText(v.title, L) || file.item.name;
+  const desc = asText(description, L) || asText(v.description, L);
+  const ref = useRef(null); const rootRef = useRef(null); const inView = useInView(rootRef);
+  const [t, setT] = useState(startAt || 0); const [dur, setDur] = useState(file.item.durationSec || durationSec || v.durationSec || 0);
+  const [play, setPlay] = useState(false); const [mute, setMute] = useState(!!muted); const [blocked, setBlocked] = useState(false);
+  const [cc, setCc] = useState(showCaptions); const [adOn, setAd] = useState(showAd); const [pjm, setPjm] = useState(showPjm); const [speed, setSpeed] = useState(1);
+  const [fs, setFs] = useState(false); const fsOk = typeof document !== 'undefined' && !!document.fullscreenEnabled && !chromeless && !compact;
+  const endRef = useRef(onEnded); endRef.current = onEnded; const timeRef = useRef(onTime); timeRef.current = onTime; const failRef = useRef(onFail); failRef.current = onFail;
+  const want = useRef(!!autoplay); const mounted = useRef(false); // zamiar odtwarzania (wstrzymanie, gdy odtwarzacz zniknie z ekranu)
+
+  const start = () => {
+    const el = ref.current; if (!el) return; want.current = true;
+    const p = el.play();
+    if (p && p.catch) p.catch((err) => {
+      if (err?.name === 'NotAllowedError' && !el.muted) { el.muted = true; setMute(true); setBlocked(true); el.play().catch(() => { want.current = false; setPlay(false); }); }
+      else if (err?.name !== 'AbortError') { want.current = false; setPlay(false); }
+    });
+  };
+  const pause = () => { want.current = false; ref.current?.pause(); };
+  useEffect(() => {
+    const el = ref.current; if (!el) return undefined;
+    const okDur = () => Number.isFinite(el.duration) && el.duration > 0;
+    const on = (n, f) => { el.addEventListener(n, f); return () => el.removeEventListener(n, f); };
+    const offs = [
+      on('loadedmetadata', () => { if (okDur()) setDur(el.duration); if (startAt) el.currentTime = startAt; }),
+      on('durationchange', () => { if (okDur()) setDur(el.duration); }),
+      on('timeupdate', () => { setT(el.currentTime); timeRef.current?.(el.currentTime); }),
+      on('seeked', () => setT(el.currentTime)),
+      on('play', () => setPlay(true)), on('pause', () => setPlay(false)),
+      on('volumechange', () => { setMute(el.muted); if (!el.muted) setBlocked(false); }),
+      on('ended', () => { if (loop) { el.currentTime = 0; el.play().catch(() => {}); } else { want.current = false; setPlay(false); } endRef.current?.(); }),
+      on('error', () => failRef.current?.()),
+    ];
+    el.muted = !!muted;
+    if (autoplay) start();
+    return () => { offs.forEach((f) => f()); try { el.pause(); el.removeAttribute('src'); el.load(); } catch { /* nic */ } };
+  }, []);
+  useEffect(() => { if (ref.current) ref.current.playbackRate = speed; }, [speed]);
+  useEffect(() => { if (!mounted.current) { mounted.current = true; return; } const el = ref.current; if (el) el.muted = !!muted; }, [muted]);
+  // odtwarzacz ukryty (końcówka w tle, przewinięty poza ekran) nie gra – wraca po ponownym pokazaniu
+  const seen = useRef(false);
+  useEffect(() => { if (!seen.current) { seen.current = true; return; } const el = ref.current; if (!el) return; if (!inView && !el.paused) { el.pause(); want.current = true; } else if (inView && want.current && el.paused) start(); }, [inView]);
+  useEffect(() => { if (!fsOk) return undefined; const f = () => setFs(document.fullscreenElement === rootRef.current); document.addEventListener('fullscreenchange', f); return () => document.removeEventListener('fullscreenchange', f); }, []);
+
+  const D = dur || 0; const shown = Math.min(t, D || t);
+  const seek = (x) => { const el = ref.current; if (!el) return; const n = clamp(x, 0, D || 0); el.currentTime = n; setT(n); };
+  const toggle = () => {
+    if (compact && onOpen) { onOpen(); return; }
+    const el = ref.current; if (!el) return;
+    if (el.paused) { if (el.ended || (D && el.currentTime >= D - 0.05)) el.currentTime = 0; start(); } else pause();
+  };
+  const toggleMute = (e) => { e?.stopPropagation(); const el = ref.current; if (!el) return; el.muted = !el.muted; setBlocked(false); };
+  const toggleFs = () => { const r = rootRef.current; if (!r) return; if (document.fullscreenElement) document.exitFullscreen?.(); else r.requestFullscreen?.().catch(() => {}); };
+  const onKey = (e) => {
+    const tag = e.target.tagName; const typ = e.target.type;
+    if ((e.key === ' ' || e.key === 'k') && tag !== 'BUTTON' && !(tag === 'INPUT' && typ !== 'range')) { e.preventDefault(); toggle(); }
+    else if (tag !== 'INPUT' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); seek(t + (e.key === 'ArrowRight' ? 5 : -5)); }
+    else if (e.key === 'c' && tag !== 'INPUT') setCc(!cc);
+    else if (e.key === 'm' && tag !== 'INPUT') toggleMute();
+  };
+  // napisy z danych – według bieżącego czasu filmu
+  let capText = null;
+  { const c = [...caps].reverse().find((x) => x.t <= t); const nx = caps.find((x) => x.t > (c?.t ?? -1)); if (c && t - c.t < Math.max(6, (nx ? nx.t - c.t : 6))) capText = [asText(c.text, L)]; }
+  if (t === 0 && !play) capText = null;
+  const adLines = ad || v.ad; let adText = '';
+  if (adLines?.length) { const c = [...adLines].reverse().find((x) => x.t <= t) || adLines[0]; adText = asText(c.text, L); }
+  else { const facts = [ttl, ...sentencesOf(desc)].filter(Boolean); adText = facts[Math.floor(t / SCENE) % Math.max(1, facts.length)] || ''; }
+
+  return (
+    <figure ref={rootRef} class={clsx('md-video md-video--file', compact && 'md-video--compact', chromeless && 'md-video--chromeless', play && 'is-playing', fs && 'is-fs', cls)}
+      onKeyDown={chromeless ? undefined : onKey} tabIndex={chromeless ? undefined : -1} data-file={file.item.id} data-muted={mute ? 'true' : undefined}>
+      <div class="md-video__frame" style={{ aspectRatio: fs ? undefined : ratio }} onClick={chromeless ? undefined : toggle}>
+        <video ref={ref} class="md-video__file" src={file.url} playsInline preload="metadata" aria-label={tr('md.video', { title: ttl })} />
+        <div class="md-video__shade" aria-hidden="true" />
+        <div class="md-video__top">
+          {archive && v.year && !compact ? <div class="md-video__live"><span class="md-video__year">{tr('md.archive')} · {v.year}</span></div> : null}
+          {showTitle && !compact && ttl && <div class="md-video__title">{ttl}</div>}
+          {!compact && adOn && <div class="md-video__ad" aria-live="polite"><b>AD</b><span>{adText}</span></div>}
+        </div>
+        {!chromeless && !play && (
+          <button type="button" class="md-video__big" aria-label={compact && onOpen ? tr('md.video', { title: ttl }) : `${tr('md.play')}: ${ttl}`} onClick={(e) => { e.stopPropagation(); toggle(); }}><Icon name="play" size={28} /></button>)}
+        {blocked && mute && !chromeless && <button type="button" class="md-video__unmute" onClick={toggleMute}><Icon name="volume" size={18} />{tr('md.unmute')}</button>}
+        {compact && <span class="md-video__dur">{fmtDuration(play || t ? Math.max(0, D - t) : D)}</span>}
+        {compact && (play || t > 0) && D > 0 && <span class="md-video__thinbar"><i style={{ width: `${(shown / D) * 100}%` }} /></span>}
+        <div class={clsx('md-video__caps', adOn && 'md-video__caps--high')} aria-live="polite">{cc && capText && capText.map((c, i) => <span key={i}>{c}</span>)}</div>
+        {pjm && !compact && <div class="md-video__pjm" aria-label={tr('md.pjm')} role="img"><PjmFigure /><span>PJM</span></div>}
+      </div>
+      {!compact && !chromeless && (
+        <figcaption class="md-video__bar">
+          <input class="md-range" type="range" min="0" max={D || 1} step="0.1" value={shown} disabled={!D} style={{ '--p': `${D ? (shown / D) * 100 : 0}%` }} aria-label={tr('md.seek')} aria-valuetext={`${fmtDuration(shown)} / ${fmtDuration(D)}`} onInput={(e) => seek(+e.currentTarget.value)} />
+          <div class="md-video__row">
+            <button type="button" class="md-btn md-btn--main" aria-label={play ? tr('md.pause') : tr('md.play')} onClick={toggle}><Icon name={play ? 'pause' : 'play'} /></button>
+            <span class="md-time">{fmtDuration(shown)} <span>/ {fmtDuration(D)}</span></span>
+            <span class="md-video__sp" />
+            <button type="button" class={clsx('md-btn', mute && 'is-on')} aria-pressed={mute} aria-label={mute ? tr('md.unmute') : tr('md.mute')} title={mute ? tr('md.unmute') : tr('md.mute')} onClick={toggleMute}><Icon name={mute ? 'mute' : 'volume'} /></button>
+            <button type="button" class={clsx('md-btn md-btn--txt', cc && 'is-on')} aria-pressed={cc} aria-label={tr('md.cc')} title={tr('md.cc')} onClick={() => setCc(!cc)}>CC</button>
+            <button type="button" class={clsx('md-btn md-btn--txt', adOn && 'is-on')} aria-pressed={adOn} aria-label={tr('md.ad')} title={tr('md.ad')} onClick={() => setAd(!adOn)}>AD</button>
+            <button type="button" class={clsx('md-btn', pjm && 'is-on')} aria-pressed={pjm} aria-label={tr('md.pjm')} title={tr('md.pjm')} onClick={() => setPjm(!pjm)}><Icon name="hand" /></button>
+            <button type="button" class={clsx('md-btn md-btn--txt', speed !== 1 && 'is-on')} aria-label={`${tr('md.speed')}: ${speed === 1 ? '1×' : '1,5×'}`} title={tr('md.speed')} onClick={() => setSpeed(speed === 1 ? 1.5 : 1)}>{speed === 1 ? '1×' : '1,5×'}</button>
+            {fsOk && <button type="button" class={clsx('md-btn', fs && 'is-on')} aria-label={fs ? tr('md.fsExit') : tr('md.fs')} title={fs ? tr('md.fsExit') : tr('md.fs')} onClick={toggleFs}><Icon name={fs ? 'minimize' : 'maximize'} /></button>}
+          </div>
+        </figcaption>)}
+    </figure>
+  );
+}
+
 /* ═════════════════════════ 2. AudioGuide ═════════════════════════ */
+/**
+ * Audioprzewodnik. Z propem src (pozycja audio biblioteki: id lub „media:<id>”) gra prawdziwe nagranie,
+ * bez niego – lektor (synteza mowy). Kontrolki i transkrypcja (z text) w obu wariantach takie same.
+ */
+export function AudioGuide(props) {
+  const { t: tr } = useClient(); useStore();
+  const file = props.src ? fileOf('audio', props.src) : null; const [failed, setFailed] = useState(null);
+  if (file && failed !== file.url) return <FileAudio key={file.url} {...props} file={file} onFail={() => setFailed(file.url)} />;
+  return <SpeechGuide {...props} note={failed ? tr('md.audioErr') : null} />;
+}
+/** Nagranie z pliku: <audio>, tempo przez playbackRate; bieżące zdanie transkrypcji – proporcjonalnie do długości tekstu. */
+function FileAudio({ file, onFail, text, title, compact, onState, class: cls, showTranscript = false, rate: rate0 = 1, autoplay }) {
+  const c = useClient(); const tr = c.t; const txt = asText(text, c.L);
+  const sents = useMemo(() => { const ss = sentencesOf(txt); return ss.length ? ss : txt ? [txt] : []; }, [txt]);
+  const ref = useRef(null); const listRef = useRef(null);
+  const [rate, setRate] = useState(rate0); const [playing, setPlaying] = useState(false); const [pos, setPos] = useState(0); const [open, setOpen] = useState(showTranscript);
+  const [total, setTotal] = useState(file.item.durationSec || 0);
+  const stateRef = useRef(onState); stateRef.current = onState; const failRef = useRef(onFail); failRef.current = onFail;
+  // początki zdań w sekundach nagrania (proporcjonalnie do liczby znaków)
+  const chars = sents.map((x) => x.length + 1); const sum = chars.reduce((a, b) => a + b, 0) || 1;
+  const starts = chars.reduce((a, n, i) => { a.push(i ? a[i - 1] + (chars[i - 1] / sum) * total : 0); return a; }, []);
+  const idx = Math.max(0, starts.filter((s0) => s0 <= pos + 0.01).length - 1);
+  useEffect(() => {
+    const el = ref.current; if (!el) return undefined;
+    const okDur = () => Number.isFinite(el.duration) && el.duration > 0;
+    const on = (n, f) => { el.addEventListener(n, f); return () => el.removeEventListener(n, f); };
+    const offs = [
+      on('loadedmetadata', () => { if (okDur()) setTotal(el.duration); }), on('durationchange', () => { if (okDur()) setTotal(el.duration); }),
+      on('timeupdate', () => setPos(el.currentTime)), on('seeked', () => setPos(el.currentTime)),
+      on('play', () => { setPlaying(true); stopSpeaking(); stateRef.current?.('play'); }),
+      on('pause', () => { setPlaying(false); stateRef.current?.('stop'); }),
+      on('ended', () => { setPlaying(false); setPos(el.duration || 0); }),
+      on('error', () => failRef.current?.()),
+    ];
+    el.playbackRate = rate;
+    if (autoplay) el.play().catch(() => {});
+    return () => { offs.forEach((f) => f()); try { el.pause(); el.removeAttribute('src'); el.load(); } catch { /* nic */ } };
+  }, []);
+  useEffect(() => { const el = ref.current; if (el) { el.playbackRate = rate; el.defaultPlaybackRate = rate; } }, [rate]);
+  useEffect(() => { const ul = listRef.current; const li = ul?.children[idx]; if (ul && li && playing) { const top = li.offsetTop - ul.offsetTop; if (top < ul.scrollTop || top + li.offsetHeight > ul.scrollTop + ul.clientHeight) ul.scrollTop = Math.max(0, top - ul.clientHeight / 3); } }, [idx, open, playing]);
+
+  const toggle = () => { const el = ref.current; if (!el) return; if (el.paused) { if (el.ended) el.currentTime = 0; el.play().catch(() => {}); } else el.pause(); };
+  const seekTo = (sec) => { const el = ref.current; if (!el) return; el.currentTime = clamp(sec, 0, total || 0); setPos(el.currentTime); };
+  const cycleRate = () => setRate(rate === 1 ? 1.25 : rate === 1.25 ? 0.8 : 1);
+  const name = title || tr('md.guide'); const prog = total ? Math.min(1, pos / total) : 0;
+  const rateLbl = String(rate).replace('.', c.lang === 'pl' ? ',' : '.') + '×';
+  const waves = <span class="md-wave" aria-hidden="true">{[0, 1, 2, 3, 4].map((k) => <i key={k} />)}</span>;
+  const audio = <audio ref={ref} src={file.url} preload="metadata" data-file={file.item.id} />;
+
+  if (compact) {
+    return (<div class={clsx('md-audio md-audio--compact md-audio--file', playing && 'is-playing', cls)} title={tr('md.recording')}>{audio}
+      <button type="button" class="md-btn md-btn--main" aria-label={`${playing ? tr('md.pause') : tr('md.play')}: ${name}`} onClick={toggle}><Icon name={playing ? 'pause' : 'headphones'} /></button>
+      <span class="md-audio__name">{name}</span>{waves}
+      <span class="md-audio__thin" role="progressbar" aria-label={name} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(prog * 100)}><i style={{ width: `${prog * 100}%` }} /></span>
+      <span class="md-time">{fmtDuration(playing || pos ? Math.max(0, total - pos) : total)}</span>
+    </div>);
+  }
+  return (<div class={clsx('md-audio md-audio--file', playing && 'is-playing', cls)}>{audio}
+    <div class="md-audio__top">
+      <button type="button" class="md-btn md-btn--main md-btn--lg" aria-label={playing ? tr('md.pause') : tr('md.play')} onClick={toggle}><Icon name={playing ? 'pause' : 'play'} /></button>
+      <div class="md-audio__meta">
+        <span class="md-audio__kicker"><Icon name="headphones" size={14} />{tr('md.guide')} · {tr('md.recording').toLowerCase()}</span>
+        <b class="md-audio__title">{name}</b>
+      </div>
+      {waves}
+    </div>
+    <input class="md-range" type="range" min="0" max={total || 1} step="0.1" value={Math.min(pos, total)} disabled={!total} style={{ '--p': `${prog * 100}%` }} aria-label={tr('md.seek')} aria-valuetext={`${fmtDuration(pos)} / ${fmtDuration(total)}`} onInput={(e) => seekTo(+e.currentTarget.value)} />
+    <div class="md-audio__row">
+      <span class="md-time">{fmtDuration(Math.min(pos, total))} <span>/ {fmtDuration(total)}</span></span>
+      <span class="md-video__sp" />
+      <button type="button" class="md-btn" aria-label={tr('md.restart')} title={tr('md.restart')} onClick={() => seekTo(0)}><Icon name="skipBack" /></button>
+      <button type="button" class="md-btn md-btn--txt" aria-label={`${tr('md.speed')}: ${rateLbl}`} title={tr('md.speed')} onClick={cycleRate}>{rateLbl}</button>
+      {sents.length > 0 && <button type="button" class={clsx('md-btn md-btn--wide', open && 'is-on')} aria-expanded={open} onClick={() => setOpen(!open)}><Icon name="captions" /><span>{tr('md.transcript')}</span></button>}
+    </div>
+    {open && sents.length > 0 && <ol class="md-audio__tx" ref={listRef} aria-label={tr('md.transcript')}>
+      {sents.map((x, i) => <li key={i} class={clsx(i === idx && (playing || pos > 0) && 'is-current', i < idx && 'is-past')} aria-current={i === idx && playing ? 'true' : undefined}>
+        <button type="button" title={tr('md.goSentence')} onClick={() => seekTo(starts[i])}>{x}</button></li>)}
+    </ol>}
+  </div>);
+}
+
 /**
  * Audioprzewodnik z lektorem (Web Speech API; gdy niedostępne – symulacja czasu).
  * props (jak w zaślepce): text, title, lang, compact, onState('play'|'stop'), class
- * props dodatkowe: showTranscript (domyślnie zwinięta), rate (0.8|1|1.25, domyślnie 1), autoplay
+ * props dodatkowe: showTranscript (domyślnie zwinięta), rate (0.8|1|1.25, domyślnie 1), autoplay, src (nagranie z biblioteki – zob. AudioGuide)
  */
-export function AudioGuide({ text, title, lang, compact, onState, class: cls, showTranscript = false, rate: rate0 = 1, autoplay }) {
+function SpeechGuide({ text, title, lang, compact, onState, class: cls, showTranscript = false, rate: rate0 = 1, autoplay, note }) {
   const c = useClient(); const tr = c.t; const txt = asText(text, c.L); const speakLang = lang || c.lang;
   const sents = useMemo(() => { const ss = sentencesOf(txt); return ss.length ? ss : [txt]; }, [txt]);
   const [rate, setRate] = useState(rate0);
@@ -305,6 +524,7 @@ export function AudioGuide({ text, title, lang, compact, onState, class: cls, sh
       <button type="button" class="md-btn md-btn--txt" aria-label={`${tr('md.speed')}: ${rateLbl}`} title={tr('md.speed')} onClick={cycleRate}>{rateLbl}</button>
       <button type="button" class={clsx('md-btn md-btn--wide', open && 'is-on')} aria-expanded={open} onClick={() => setOpen(!open)}><Icon name="captions" /><span>{tr('md.transcript')}</span></button>
     </div>
+    {note && <p class="md-note" role="status">{note}</p>}
     {simulated && <p class="md-note">{tr('md.lectorSim')}</p>}
     {open && <ol class="md-audio__tx" ref={listRef} aria-label={tr('md.transcript')}>
       {sents.map((x, i) => <li key={i} class={clsx(i === idx && (playing || pos > 0) && 'is-current', i < idx && 'is-past')} aria-current={i === idx && playing ? 'true' : undefined}>
@@ -872,12 +1092,34 @@ export async function renderTrackOffline(id, seconds = 6, sampleRate = 22050) {
   const buf = await ctx.startRendering(); const d = buf.getChannelData(0); let s = 0, p = 0; for (let i = 0; i < d.length; i++) { s += d[i] * d[i]; p = Math.max(p, Math.abs(d[i])); }
   return { rms: Math.sqrt(s / d.length), peak: p, buffer: buf };
 }
+/** Adres pliku przypisanego do ścieżki w CMS (state.settings.sounds = { [idŚcieżki]: 'media:<id>' }) albo null. */
+export const soundFileUrl = (id) => { const r = getState()?.settings?.sounds?.[id]; const m = r && mediaItem(r); return m && m.type === 'audio' ? mediaUrl(m) : null; };
 /**
- * Odtwarzacz „Dźwięków miasta”. Start wyłącznie z gestu użytkownika (play()).
- * → { tracks, current, playing, play(id?), stop(), next(), prev(), volume, setVolume(v 0..1), getLevels() → {level 0..1, bands:number[16]}, analyser, supported }
+ * Ścieżka z pliku: HTMLAudioElement w pętli → MediaElementSource → ten sam tor (głośność, analizator) co synteza.
+ * crossOrigin = 'anonymous' – plik może pochodzić z innego originu (aplikacja APK, serwer z Access-Control-Allow-Origin: *).
+ * Element trafia do dokumentu (ukryty, data-fpz-sound) – łatwo go znaleźć w testach i narzędziach serwisowych.
+ */
+function createFileTrack(ctx, id, url, dest, onError) {
+  const el = new Audio(); el.crossOrigin = 'anonymous'; el.loop = true; el.preload = 'auto'; el.dataset.fpzSound = id; el.hidden = true; el.src = url;
+  const bus = ctx.createGain(); bus.gain.value = 0; bus.connect(dest);
+  let node = null; try { node = ctx.createMediaElementSource(el); node.connect(bus); } catch { /* bez Web Audio – gra sam element */ }
+  el.addEventListener('error', () => onError?.());
+  try { document.body.appendChild(el); } catch { /* nic */ }
+  el.play().catch((e) => { if (e?.name !== 'AbortError') onError?.(); });
+  return {
+    bus, el, file: true, schedule() {},
+    fadeIn(t, s = 0.9) { bus.gain.cancelScheduledValues(t); bus.gain.setValueAtTime(0.0001, t); bus.gain.exponentialRampToValueAtTime(1, t + s); },
+    stop(t, s = 0.6) { bus.gain.cancelScheduledValues(t); bus.gain.setValueAtTime(Math.max(0.0001, bus.gain.value), t); bus.gain.exponentialRampToValueAtTime(0.0001, t + s);
+      setTimeout(() => { try { el.pause(); el.removeAttribute('src'); el.load(); el.remove(); node?.disconnect(); bus.disconnect(); } catch { /* nic */ } }, (s + 0.15) * 1000); },
+  };
+}
+/**
+ * Odtwarzacz „Dźwięków miasta”. Start wyłącznie z gestu użytkownika (play()). Ścieżka z plikiem przypisanym w CMS gra nagranie w pętli,
+ * bez pliku – synteza (Web Audio).
+ * → { tracks, current, playing, play(id?), stop(), next(), prev(), volume, setVolume(v 0..1), getLevels() → {level 0..1, bands:number[16]}, analyser, supported, source: 'file'|'synth'|null, hasFile(id) }
  */
 export function useSoundscape() {
-  const [current, setCurrent] = useState(SOUND_TRACKS[0].id); const [playing, setPlaying] = useState(false); const [volume, setVol] = useState(0.7);
+  const [current, setCurrent] = useState(SOUND_TRACKS[0].id); const [playing, setPlaying] = useState(false); const [volume, setVol] = useState(0.7); const [source, setSource] = useState(null);
   const r = useRef({ ctx: null, master: null, track: null, timer: 0, vol: 0.7, simT0: 0, bins: null });
   const AC = typeof window !== 'undefined' ? window.AudioContext || window.webkitAudioContext : null;
   const halt = (hard) => {
@@ -891,11 +1133,17 @@ export function useSoundscape() {
     try {
       if (!s.ctx) { s.ctx = new AC({ latencyHint: 'playback' }); s.master = createMaster(s.ctx, s.vol); }
       const ctx = s.ctx; if (ctx.state === 'suspended') ctx.resume?.();
-      const tr = createTrack(ctx, tid, s.master.input); tr.fadeIn(ctx.currentTime + 0.05, 0.9); s.track = tr;
-      const pump = () => { if (s.track === tr) tr.schedule(ctx.currentTime + 0.25); }; pump(); s.timer = setInterval(pump, 60);
+      const synthTrack = () => { const tr = createTrack(ctx, tid, s.master.input); tr.fadeIn(ctx.currentTime + 0.05, 0.9); s.track = tr; setSource('synth');
+        const pump = () => { if (s.track === tr) tr.schedule(ctx.currentTime + 0.25); }; pump(); clearInterval(s.timer); s.timer = setInterval(pump, 60); };
+      const url = soundFileUrl(tid);
+      if (url) {
+        // błąd pliku (usunięty, nieobsługiwany format) → ta sama ścieżka z syntezy
+        const ft = createFileTrack(ctx, tid, url, s.master.input, () => { if (s.track === ft) { ft.stop(ctx.currentTime, 0.05); synthTrack(); } });
+        ft.fadeIn(ctx.currentTime + 0.05, 0.6); s.track = ft; setSource('file');
+      } else synthTrack();
     } catch { /* brak audio – stan odtwarzania symulowany */ }
   };
-  const stop = () => { halt(false); setPlaying(false); };
+  const stop = () => { halt(false); setPlaying(false); setSource(null); };
   const step = (d) => { const i = SOUND_TRACKS.findIndex((x) => x.id === current); const nid = SOUND_TRACKS[(i + d + SOUND_TRACKS.length) % SOUND_TRACKS.length].id; if (playing) play(nid); else setCurrent(nid); };
   const setVolume = (v) => { const x = clamp(+v || 0, 0, 1); setVol(x); const s = r.current; s.vol = x; if (s.master && s.ctx) s.master.gain.gain.setTargetAtTime(x, s.ctx.currentTime, 0.05); };
   const getLevels = () => {
@@ -910,7 +1158,7 @@ export function useSoundscape() {
     return { level: tot / 16, bands };
   };
   useEffect(() => () => { const s = r.current; halt(true); if (s.ctx) { const c = s.ctx; s.ctx = null; setTimeout(() => { try { c.close(); } catch { /* nic */ } }, 120); } }, []);
-  return { tracks: SOUND_TRACKS, current, playing, play, stop, next: () => step(1), prev: () => step(-1), volume, setVolume, getLevels, analyser: r.current.master?.analyser || null, supported: !!AC };
+  return { tracks: SOUND_TRACKS, current, playing, play, stop, next: () => step(1), prev: () => step(-1), volume, setVolume, getLevels, analyser: r.current.master?.analyser || null, supported: !!AC, source, hasFile: (id) => !!soundFileUrl(id) };
 }
 
 /** Wizualizacja poziomów (słupki) dla useSoundscape – jedna pętla rAF tylko podczas odtwarzania. props: sound (wynik useSoundscape), bars=16, class */

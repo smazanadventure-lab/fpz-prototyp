@@ -20,7 +20,8 @@ const target = args.target || 'file';
 const apiBase = args.api === undefined ? (target === 'netlify' ? '' : null) : (args.api === true ? '' : String(args.api).replace(/\/+$/, ''));
 if (target === 'apk' && !apiBase) { console.error('BŁĄD: --target=apk wymaga adresu serwera, np. --api=https://fpz-prototyp.netlify.app'); process.exit(1); }
 const start = args.start || (target === 'apk' ? 'app' : '');
-const outName = args.out || (target === 'netlify' ? 'site/index.html' : target === 'apk' ? 'apk/index.html' : only ? `dev-${only.join('-')}.html` : 'index.html');
+const siteDir = typeof args.site === 'string' ? args.site : 'site'; // --site=nazwa: inny katalog wyniku (równoległe prace nie nadpisują sobie plików)
+const outName = args.out || (target === 'netlify' ? `${siteDir}/index.html` : target === 'apk' ? 'apk/index.html' : only ? `dev-${only.join('-')}.html` : 'index.html');
 const minify = !only && !args.dev;
 const buildId = String(Date.now());
 
@@ -124,15 +125,15 @@ const html = page(result, target === 'apk' ? APP_TITLE : 'Fabryka Pełna Życia 
 fs.mkdirSync(path.dirname(path.join(root, 'dist', outName)), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist', outName), html);
 if (target === 'netlify') {
-  const site = path.join(root, 'dist/site');
+  const site = path.join(root, 'dist', siteDir);
   // /app – ta sama aplikacja dla zwiedzających, która trafia do APK (osobna, mniejsza paczka bez zaplecza)
   const app = page(await bundle({ entry: 'src/main-app.jsx', appOnly: true, api: '', startAt: 'app' }), APP_TITLE);
   fs.mkdirSync(path.join(site, 'app'), { recursive: true }); fs.writeFileSync(path.join(site, 'app/index.html'), app);
-  console.log(`OK dist/site/app/index.html  ${(app.length / 1024).toFixed(0)} kB  (aplikacja dla zwiedzających)`);
+  console.log(`OK dist/${siteDir}/app/index.html  ${(app.length / 1024).toFixed(0)} kB  (aplikacja dla zwiedzających)`);
   // Adresy końcówek → jedna z dwóch stron. Plik _redirects trafia do katalogu publikacji (te same reguły są w netlify.toml).
   const SPA = [['app', '/app/index.html'], ['q', '/app/index.html'], ...['www', 'kiosk', 'lcd', 'bileter', 'cms', 'ekspozycja', 'kody'].map((r) => [r, '/index.html'])];
   fs.writeFileSync(path.join(site, '_redirects'), SPA.map(([r, to]) => `/${r}/*  ${to}  200`).join('\n') + '\n');
   for (const f of fs.readdirSync(path.join(root, 'public'))) { let buf = fs.readFileSync(path.join(root, 'public', f)); if (f === 'sw.js') buf = Buffer.from(String(buf).replace('__BUILD__', buildId)); fs.writeFileSync(path.join(site, f), buf); }
-  await buildServer();
+  if (siteDir === 'site') await buildServer();
 }
 console.log(`OK dist/${outName}  ${(html.length / 1024).toFixed(0)} kB  (${Date.now() - t0} ms)${only ? '  tylko: ' + only.join(',') : ''}${stub.length ? '  zaślepki: ' + stub.join(',') : ''}${apiBase !== null ? '  tryb serwerowy: ' + (apiBase || '(ten sam adres)') : ''}`);
