@@ -8,6 +8,7 @@ import * as esbuild from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).map((a) => { const m = a.match(/^--([^=]+)(?:=(.*))?$/); return m ? [m[1], m[2] ?? true] : [a, true]; }));
@@ -134,6 +135,13 @@ if (target === 'netlify') {
   const SPA = [['app', '/app/index.html'], ['q', '/app/index.html'], ...['www', 'kiosk', 'lcd', 'bileter', 'cms', 'ekspozycja', 'nadawanie', 'kody'].map((r) => [r, '/index.html'])];
   fs.writeFileSync(path.join(site, '_redirects'), SPA.map(([r, to]) => `/${r}/*  ${to}  200`).join('\n') + '\n');
   for (const f of fs.readdirSync(path.join(root, 'public'))) { let buf = fs.readFileSync(path.join(root, 'public', f)); if (f === 'sw.js') buf = Buffer.from(String(buf).replace('__BUILD__', buildId)); fs.writeFileSync(path.join(site, f), buf); }
+  // Pliki do pobrania pod /pobierz/…: zawartość katalogu pobierz/ + świeżo zbudowany prototyp w jednym pliku (wersja bez serwera).
+  // Nagłówek Content-Disposition sprawia, że przeglądarka je zapisuje zamiast otwierać.
+  const dl = path.join(site, 'pobierz'); fs.mkdirSync(dl, { recursive: true });
+  for (const f of fs.existsSync(path.join(root, 'pobierz')) ? fs.readdirSync(path.join(root, 'pobierz')) : []) { if (f !== 'README.md') fs.copyFileSync(path.join(root, 'pobierz', f), path.join(dl, f)); }
+  execFileSync(process.execPath, [fileURLToPath(import.meta.url), `--out=${siteDir}/pobierz/FPZ-prototyp-wersja-testowa.html`], { cwd: root, stdio: 'pipe' });
+  fs.writeFileSync(path.join(site, '_headers'), '/pobierz/*\n  Content-Disposition: attachment\n  Cache-Control: no-cache\n');
+  console.log(`OK dist/${siteDir}/pobierz/  ${fs.readdirSync(dl).join(', ')}`);
   if (siteDir === 'site') await buildServer();
 }
 console.log(`OK dist/${outName}  ${(html.length / 1024).toFixed(0)} kB  (${Date.now() - t0} ms)${only ? '  tylko: ' + only.join(',') : ''}${stub.length ? '  zaślepki: ' + stub.join(',') : ''}${apiBase !== null ? '  tryb serwerowy: ' + (apiBase || '(ten sam adres)') : ''}`);
