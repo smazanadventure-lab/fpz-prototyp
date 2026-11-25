@@ -1,0 +1,12 @@
+# Jednorazowa diagnostyka pliku wideo z biblioteki mediów (gałąź diag) – odczyt nagłówków MP4, bez zmian w systemie.
+name: Diagnostyka pliku wideo
+on:
+  push:
+    branches: [diag]
+jobs:
+  mp4info:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/mp4info.py https://fpz-prototyp.netlify.app/api/media/m-mww6sefp2d9n
