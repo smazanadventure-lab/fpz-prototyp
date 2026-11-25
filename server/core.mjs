@@ -1,9 +1,10 @@
 // Backend pilotażowy: te same operacje domenowe (src/kernel/api.js) wykonywane na serwerze na wspólnym stanie.
 // Stan to jeden dokument JSON w magazynie (Netlify Blobs / plik lokalny) zapisywany warunkowo (etag) z ponawianiem.
-// Trasy:  GET /api/sync   POST /api/rpc   POST /api/reset   GET /api/info
+// Trasy:  GET /api/sync   POST /api/rpc   POST /api/reset   GET /api/info   + pliki (/api/media), urządzenia (/api/beat…), płatności Tpay (/api/pay/… – server/pay-routes.mjs)
 import { setState } from '../src/kernel/store.js';
 import { makeSeed, defaultPlayer, SEED_SCHEMA, BACKOFFICE_KEYS } from '../src/kernel/seed.js';
 import { runOp, applySchedules, SHARED_ENV_KEYS } from '../src/kernel/api.js';
+import { createPayRoutes, payInfo, blocksSimulatedPay } from './pay-routes.mjs';
 
 try { process.env.TZ = 'Europe/Warsaw'; } catch { /* daty lokalne liczone w czasie serwera */ }
 
@@ -58,7 +59,7 @@ function view(doc, { since, deviceId, epoch, role }) {
     if (app && APP_HIDDEN.has(k)) continue;
     keys[k] = v;
   }
-  return { epoch: doc.epoch, version: doc.version, full, keys };
+  return { epoch: doc.epoch, version: doc.version, full, keys, pay: payInfo() }; // pay: kto obsługuje płatności (Tpay albo symulacja)
 }
 
 /* ───── Pliki multimedialne ─────
@@ -131,6 +132,8 @@ export function createHandler(getStorage) {
     return out;
   }
 
+  const payRoute = createPayRoutes({ load, mutate, compose, decompose, json });
+
   return async function handle(request) {
     const url = new URL(request.url); const route = url.pathname.replace(/^.*\/api\//, '').replace(/\/+$/, '');
     const origin = request.headers.get('origin');
@@ -140,7 +143,7 @@ export function createHandler(getStorage) {
       const storage = getStorage(); const q = Object.fromEntries(url.searchParams);
       if (route === 'info' && request.method === 'GET') {
         const { doc } = await load(storage); const d = doc.data;
-        return json({ ok: true, service: 'fpz-pilot', schema: doc.schema, epoch: doc.epoch, version: doc.version, seededAt: doc.seededAt, logo: d.settings?.logo ? 'plik z CMS' : 'wbudowane', migrations: doc.migrations || [], counts: { entries: d.entries.length, events: d.events.length, orders: d.orders.length, tickets: d.tickets.length, players: Object.keys(d.players).length, devices: d.devices.length } }, 200, cors);
+        return json({ ok: true, service: 'fpz-pilot', schema: doc.schema, epoch: doc.epoch, version: doc.version, seededAt: doc.seededAt, logo: d.settings?.logo ? 'plik z CMS' : 'wbudowane', payments: payInfo() || { provider: 'symulacja' }, migrations: doc.migrations || [], counts: { entries: d.entries.length, events: d.events.length, orders: d.orders.length, tickets: d.tickets.length, players: Object.keys(d.players).length, devices: d.devices.length } }, 200, cors);
       }
       if (route === 'sync' && request.method === 'GET') {
         const ident = { since: +q.since || 0, epoch: q.epoch || '', deviceId: q.device || 'anon', role: q.role === 'app' ? 'app' : 'full' };
@@ -156,7 +159,8 @@ export function createHandler(getStorage) {
           const results = [];
           for (const o of ops) {
             if (o.nonce && doc.recent.includes(o.nonce)) { results.push({ ok: true, duplicate: true }); continue; } // ponowienie po utraconej odpowiedzi
-            if (ident.role === 'app' && ADMIN_OP.test(o.op)) { results.push({ ok: false, error: 'FORBIDDEN' }); continue; } // aplikacja dla zwiedzających nie wykonuje operacji zaplecza
+            if (ident.role === 'app' && ADMIN_OP.test(o.op)) { results.push({ ok: false, error: 'FORBIDDEN' }); continue; }
+            if (blocksSimulatedPay(o.op)) { results.push({ ok: false, error: 'PAYMENT_EXTERNAL', message: { pl: 'Płatność obsługuje Tpay – zaktualizuj aplikację i zapłać ponownie.', en: 'Payments are handled by Tpay – update the app and pay again.' } }); if (o.nonce) doc.recent.push(o.nonce); continue; } // płatność symulowana jest wyłączona, gdy działa Tpay // aplikacja dla zwiedzających nie wykonuje operacji zaplecza
             const c = compose(doc, ident.deviceId, o); setState(c.s); let res;
             try { res = runOp(c.s, o.op, { clientId: c.cid, client: c.s.clients[c.cid], deviceId: ident.deviceId, nonce: o.nonce || String(Date.now()) }, o.args); if (res === null) res = { ok: false, error: 'UNKNOWN_OP' }; }
             catch (e) { console.error('[api] operacja', o.op, e); res = { ok: false, error: 'SERVER_ERROR', message: { pl: 'Błąd operacji na serwerze.', en: 'Server operation error.' } }; }
@@ -172,6 +176,8 @@ export function createHandler(getStorage) {
         const results = r.out.map((x) => ({ ok: x?.ok !== false, error: x?.error || null, message: x?.message || null, duplicate: x?.duplicate || undefined }));
         return json({ results, ...view(r.doc, ident), etag: r.etag }, 200, cors);
       }
+      /* ── płatności Tpay ── */
+      { const pr = await payRoute(route, request, url, q, storage, cors); if (pr) return pr; }
       /* ── pliki multimedialne ── */
       const mm = route.match(/^media\/([^/]+)$/);
       if (mm) {

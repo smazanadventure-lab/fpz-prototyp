@@ -157,6 +157,29 @@ function issueTickets(s, order) {
   for (const it of order.items) { const p = byId(s.products, it.productId); if (!p) continue; for (let i = 0; i < it.qty; i++) { if (p.kind === 'package' && p.includes?.length) p.includes.forEach((pid) => { const ip = byId(s.products, pid); if (ip) one(ip, it); }); else one(p, it); } }
   return out;
 }
+/**
+ * Rozliczenie zamówienia po potwierdzeniu płatności przez operatora (Tpay). Wywołuje to wyłącznie serwer po sprawdzeniu
+ * powiadomienia albo stanu transakcji – to NIE jest operacja publiczna (nie ma jej w OPS, klient nie może jej wywołać).
+ */
+export function settleOrder(s, orderId, payment) {
+  const o = byId(s.orders, orderId); if (!o) return { ok: false, error: 'NOT_FOUND' };
+  if (o.status === 'paid') return { ok: true, order: o, already: true };
+  if (!['pending', 'cancelled'].includes(o.status)) return { ok: false, error: 'STATE', status: o.status };
+  return withIdSeed('pay-' + o.id, () => {
+    const late = o.status === 'cancelled'; // klient anulował w aplikacji, ale zdążył zapłacić u operatora – pieniądze wpłynęły, więc bilety wydajemy
+    o.status = 'paid'; o.payment = { ...(o.payment || {}), ...payment, sca: true, at: nowIso(), pending: false, failed: false, ...(late ? { paidAfterCancel: true } : {}) };
+    const tickets = issueTickets(s, o); bump(s, 'tickets', tickets.length);
+    const u = byId(s.users, o.userId); outbox(s, 'email', u?.email, `Bilety – zamówienie ${o.no}`, `Dziękujemy za zakup. Liczba biletów: ${tickets.length}. Kody QR są dostępne w aplikacji i na stronie WWW.`);
+    return { ok: true, order: o, tickets };
+  });
+}
+/** Zwrot zgłoszony przez operatora płatności (powiadomienie „chargeback” = zwrot wykonany w panelu operatora). */
+export function refundByOperator(s, orderId) {
+  const o = byId(s.orders, orderId); if (!o) return { ok: false, error: 'NOT_FOUND' }; if (o.status === 'refunded') return { ok: true, order: o, already: true }; if (o.status !== 'paid') return { ok: false, error: 'STATE' };
+  o.status = 'refunded'; o.refundedAt = nowIso(); o.payment = { ...(o.payment || {}), refundedByOperator: true };
+  for (const t of s.tickets.filter((x) => x.orderId === o.id)) { if (t.status === 'valid') { t.status = 'refunded'; const e = t.eventId && byId(s.events, t.eventId); if (e) e.sold = Math.max(0, e.sold - 1); } }
+  return { ok: true, order: o };
+}
 function syncGame(s) {
   const p = s.player; let n = 0;
   for (const id of p.pending) { const d = p.done[id]; if (d && !d.synced) { d.synced = true; n++; s.gameStats.missionsDone++; if (d.routeId && s.gameStats.byRoute[d.routeId] != null) s.gameStats.byRoute[d.routeId]++; } }

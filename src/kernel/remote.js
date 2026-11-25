@@ -31,7 +31,7 @@ function apply(r) {
   const st = getState().net; const newEpoch = !!st.epoch && r.epoch !== st.epoch;
   const n = Object.keys(r.keys || {}).filter((k) => k !== 'apiLog').length; if (n) lastActivity = Date.now();
   if (r.full) { lastFull = Date.now(); needFull = false; }
-  applyShared(r.keys, { status: 'online', version: r.version, epoch: r.epoch, etag: r.etag, lastSync: Date.now(), pending: queue.length }, { newEpoch });
+  applyShared(r.keys, { status: 'online', version: r.version, epoch: r.epoch, etag: r.etag, lastSync: Date.now(), pending: queue.length, pay: r.pay || null }, { newEpoch });
 }
 function interval() {
   if (typeof document !== 'undefined' && document.hidden) return 0;
@@ -91,3 +91,7 @@ export async function remoteReset() {
 }
 export const dismissConflict = () => setNet({ conflict: null });
 export const syncNow = () => kick();
+/** Czeka, aż kolejka operacji dotrze na serwer (np. zamówienie przed rozpoczęciem płatności). Zwraca true, gdy kolejka jest pusta. */
+export const whenSent = (ms = 8000) => new Promise((res) => { const t0 = Date.now(); const chk = () => { if (!queue.length && !sending) return res(true); if (Date.now() - t0 > ms) return res(false); setTimeout(chk, 120); }; chk(); });
+/** Wywołanie dodatkowej trasy API (poza synchronizacją), np. płatności. Zwraca treść odpowiedzi także dla błędów HTTP. */
+export async function apiCall(path, init) { const r = await fetch(url(path), { ...init, cache: 'no-store', credentials: 'omit' }); const j = await r.json().catch(() => null); return j || { ok: false, error: 'HTTP_' + r.status }; }

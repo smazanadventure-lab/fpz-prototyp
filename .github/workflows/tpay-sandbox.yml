@@ -1,0 +1,27 @@
+# Sprawdzenie integracji z prawdziwym środowiskiem testowym Tpay (sandbox): token, utworzenie i odczyt transakcji,
+# certyfikaty powiadomień. Nie wykonuje żadnej płatności. Uruchamia się po zmianach w kodzie płatności oraz ręcznie
+# (Actions → „Tpay sandbox” → Run workflow).
+#
+# Klucze: sekrety repozytorium TPAY_CLIENT_ID / TPAY_CLIENT_SECRET (własne konto sandbox). Gdy ich nie ma, test używa
+# publicznych kluczy demonstracyjnych, które Tpay podaje w dokumentacji swojej biblioteki
+# (https://github.com/tpay-com/tpay-openapi-php – README, sekcja o danych do sandboxa).
+name: Tpay sandbox
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, tpay]
+    paths: ['server/tpay.mjs', 'test/tpay-live.mjs', '.github/workflows/tpay-sandbox.yml']
+jobs:
+  tpay-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Token, transakcja, odczyt, certyfikaty
+        env:
+          TPAY_ENV: sandbox
+          TPAY_CLIENT_ID: ${{ secrets.TPAY_CLIENT_ID || '1010-e5736adfd4bc5d8c' }}
+          TPAY_CLIENT_SECRET: ${{ secrets.TPAY_CLIENT_SECRET || '493e01af815383a687b747675010f65d1eefaeb42f63cfe197e7b30f14a556b7' }}
+        run: node test/tpay-live.mjs
