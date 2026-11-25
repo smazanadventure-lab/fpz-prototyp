@@ -5,6 +5,7 @@ import qrcode from 'qrcode-generator';
 import './tokens.css';
 import './components.css';
 import { ICONS } from './icon-data.js';
+import { LOGO } from './logo-data.js';
 import { Illustration } from './illustrations.jsx';
 import { clsx, paragraphs, fmtDuration } from '../kernel/util.js';
 import { useClient, stepFontScale, stopSpeaking } from '../kernel/client.jsx';
@@ -85,13 +86,15 @@ export function PatternBand({ height, scale = 1, class: cls, children, style }) 
       <rect width="100%" height="100%" fill={`url(#${id})`} /></svg>
     {children && <div class="fpz-band__content">{children}</div>}</div>);
 }
-/** Logotyp: plik wgrany w CMS (Ustawienia → Identyfikacja) albo neutralny znak zastępczy z nazwą. */
+/** Logotyp Fabryki Pełnej Życia: plik wgrany w CMS (Ustawienia → Identyfikacja) albo wbudowany znak (inline SVG,
+ *  kolor z currentColor – ciemny na jasnym tle, biały z onDark i w motywach ciemnych). compact – sam sygnet. */
+const LOGO_FULL_VB = `0 0 ${LOGO.w} ${LOGO.h}`, LOGO_MARK_VB = LOGO.mark.box.join(' '), LOGO_FULL_D = LOGO.mark.d + LOGO.word.d;
 export function Logo({ onDark, class: cls, compact }) {
   const s = useStore(); const logo = s.settings.logo;
-  return (<span class={clsx('fpz-logo', onDark && 'fpz-logo--on-dark', cls)} title="Miejsce na logotyp przekazany przez Zamawiającego (CMS → Ustawienia → Identyfikacja)">
-    {logo ? <img class="fpz-logo__img" src={logo} alt={s.site.name.pl} /> : (<>
-      <svg class="fpz-logo__mark" viewBox="0 0 34 34" aria-hidden="true"><rect x="1.5" y="1.5" width="31" height="31" rx="7" fill="none" stroke="currentColor" stroke-width="3" /><path d="M11 25V9h12M11 17h9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" /><circle cx="24.5" cy="24.5" r="2" fill="currentColor" /></svg>
-      {!compact && <span class="fpz-logo__txt"><b>Fabryka.</b><span>Pełna<br />Życia</span></span>}</>)}
+  return (<span class={clsx('fpz-logo', onDark && 'fpz-logo--on-dark', compact && 'fpz-logo--compact', cls)}>
+    {logo ? <img class="fpz-logo__img" src={logo} alt={s.site.name.pl} />
+      : <svg class={clsx('fpz-logo__mark', !compact && 'fpz-logo__mark--full')} viewBox={compact ? LOGO_MARK_VB : LOGO_FULL_VB} preserveAspectRatio={compact ? undefined : 'xMinYMid slice'} role="img" aria-label="Fabryka Pełna Życia" focusable="false">
+        <path fill="currentColor" d={compact ? LOGO.mark.d : LOGO_FULL_D} /></svg>}
   </span>);
 }
 

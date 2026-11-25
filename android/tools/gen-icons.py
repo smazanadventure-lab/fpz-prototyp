@@ -1,78 +1,69 @@
 #!/usr/bin/env python3
 """Generuje ikony aplikacji i grafiki ekranu startowego (splash) dla FPŻ – prototyp.
 
-Własny, prosty znak: jasne litery „FPŻ” z kreską pod spodem na zielonym tle #125930.
+Znak: sygnet Fabryki Pełnej Życia (biały) na zielonym tle #125930, wycięty z kanału alfa oficjalnego logo
+docs/logo/zrodlo/fabryka-pelna-zycia-logo-czarne-poziome.png (bez przerysowywania).
 Uruchomienie (z katalogu głównego projektu):  python3 android/tools/gen-icons.py
 Wymaga: Pillow (pip install pillow).
 """
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 GREEN = (0x12, 0x59, 0x30, 255)
-LIGHT = (0xF2, 0xF7, 0xEE, 255)
-ACCENT = (0x9F, 0xD8, 0x6B, 255)
-TEXT = "FPŻ"
+WHITE = (0xFF, 0xFF, 0xFF, 255)
 
+ROOT = Path(__file__).resolve().parent.parent.parent
+SRC = ROOT / "docs" / "logo" / "zrodlo" / "fabryka-pelna-zycia-logo-czarne-poziome.png"
 RES = Path(__file__).resolve().parent.parent / "app" / "src" / "main" / "res"
 DENSITIES = {"mdpi": 1.0, "hdpi": 1.5, "xhdpi": 2.0, "xxhdpi": 3.0, "xxxhdpi": 4.0}
-SS = 4  # nadpróbkowanie dla gładkich krawędzi
-
-FONT_CANDIDATES = [
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    "/Library/Fonts/Arial Bold.ttf",
-    "C:/Windows/Fonts/arialbd.ttf",
-]
+SS = 4  # nadpróbkowanie tła (zaokrąglenia, koło) dla gładkich krawędzi
+SPLIT = 1440  # sygnet zajmuje lewą część pliku źródłowego (do ok. 1240 px), napis – od ok. 1650 px
 
 
-def load_font(size):
-    for p in FONT_CANDIDATES:
-        if Path(p).exists():
-            return ImageFont.truetype(p, size)
-    return ImageFont.load_default(size=size)  # Pillow >= 10.1
+def load_mark():
+    a = Image.open(SRC).convert("RGBA").getchannel("A")
+    a = a.crop((0, 0, SPLIT, a.height))
+    return a.crop(a.getbbox())
 
 
-def draw_mark(img, box_w):
-    """Rysuje znak (litery + kreska) wyśrodkowany, o szerokości ok. box_w px."""
-    d = ImageDraw.Draw(img)
+MARK = load_mark()
+
+
+def draw_mark(img, frac):
+    """Nakłada biały sygnet o wysokości frac·bok, wyśrodkowany (skalowanie LANCZOS z pełnej rozdzielczości)."""
     W, H = img.size
-    size = int(box_w * 0.62)
-    font = load_font(size)
-    while d.textlength(TEXT, font=font) > box_w and size > 8:
-        size -= 2
-        font = load_font(size)
-    l, t, r, b = d.textbbox((0, 0), TEXT, font=font)
-    tw, th = r - l, b - t
-    bar_h = max(1, int(box_w * 0.07))
-    gap = int(box_w * 0.08)
-    total_h = th + gap + bar_h
-    x = (W - tw) / 2 - l
-    y = (H - total_h) / 2 - t
-    d.text((x, y), TEXT, font=font, fill=LIGHT)
-    by = (H - total_h) / 2 + th + gap
-    d.rounded_rectangle(
-        [(W - tw) / 2, by, (W + tw) / 2, by + bar_h], radius=bar_h / 2, fill=ACCENT
-    )
+    h = round(H * frac)
+    w = round(h * MARK.width / MARK.height)
+    layer = Image.new("RGBA", (w, h), WHITE)
+    layer.putalpha(MARK.resize((w, h), Image.LANCZOS))
+    img.alpha_composite(layer, ((W - w) // 2, (H - h) // 2))
+
+
+def background(px, shape):
+    S = px * SS
+    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    m = int(S * 0.04)
+    if shape == "square":
+        d.rounded_rectangle([m, m, S - m, S - m], radius=int(S * 0.18), fill=GREEN)
+    elif shape == "round":
+        d.ellipse([m, m, S - m, S - m], fill=GREEN)
+    return img.resize((px, px), Image.LANCZOS)
 
 
 def render(px, shape):
     """shape: 'square' (legacy, zaokrąglony kwadrat), 'round' (koło), 'fg' (warstwa adaptacyjna)."""
-    S = px * SS
-    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
+    img = background(px, shape)
     if shape == "square":
-        m = int(S * 0.04)
-        d.rounded_rectangle([m, m, S - m, S - m], radius=int(S * 0.18), fill=GREEN)
-        draw_mark(img, int(S * 0.70))
+        draw_mark(img, 0.56)
     elif shape == "round":
-        m = int(S * 0.04)
-        d.ellipse([m, m, S - m, S - m], fill=GREEN)
-        draw_mark(img, int(S * 0.62))
+        draw_mark(img, 0.52)
     else:
-        # 108 dp, strefa bezpieczna to koło 66 dp – znak mieści się w ~56% szerokości.
-        draw_mark(img, int(S * 0.56))
-    return img.resize((px, px), Image.LANCZOS)
+        # 108 dp; strefa bezpieczna to koło 66 dp – sygnet 46 dp wysokości (przekątna ≈ 63 dp) mieści się w niej.
+        # Tło #125930 pochodzi z zasobów (ic_launcher_background) – tu tylko przezroczysta warstwa ze znakiem.
+        draw_mark(img, 46 / 108)
+    return img
 
 
 def main():

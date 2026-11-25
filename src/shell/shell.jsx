@@ -9,6 +9,7 @@ import { sel } from '../kernel/api.js';
 import { clsx, pad2, fmtDistance } from '../kernel/util.js';
 import { Icon, ScaleBox, Select, Tabs } from '../ui/components.jsx';
 import { SitePlan, CityMap } from '../ui/maps.jsx';
+import { LOGO } from '../ui/logo-data.js';
 import { QR } from '../ui/components.jsx';
 import { remoteEnabled, remoteReset } from '../kernel/remote.js';
 import { NetBadge, NetNotice } from './net.jsx';
@@ -166,7 +167,7 @@ export function Shell() {
   const liveCalls = s.apiLog.length;
   return (<div class={clsx('sh-root', remote && 'is-remote')}>
     <header class="sh-top">
-      <div class="sh-brand"><span class="sh-brand__mark">FPŻ</span><span><b>Fabryka Pełna Życia</b><small>prototyp systemu multimedialnego</small></span><span class="sh-badge" title="Dane przykładowe. Logowanie, płatności, kamera, Bluetooth i GPS są symulowane.">WERSJA TESTOWA</span></div>
+      <div class="sh-brand"><span class="sh-brand__mark"><svg viewBox={LOGO.mark.box.join(' ')} role="img" aria-label="Fabryka Pełna Życia"><path d={LOGO.mark.d} fill="currentColor" /></svg></span><span><b>Fabryka Pełna Życia</b><small>prototyp systemu multimedialnego</small></span><span class="sh-badge" title="Dane przykładowe. Logowanie, płatności, kamera, Bluetooth i GPS są symulowane.">WERSJA TESTOWA</span></div>
       <nav class="sh-tabs" role="tablist" aria-label="Końcówki systemu">{ALL.map((e) => <button key={e.id} type="button" role="tab" aria-selected={tab === e.id} class={clsx('sh-tabbtn', tab === e.id && 'is-active')} onClick={() => setTab(e.id)} title={e.hint}><Icon name={e.icon} size={16} /><span>{e.short}</span></button>)}</nav>
       <div class="sh-tools">
         <NetBadge />

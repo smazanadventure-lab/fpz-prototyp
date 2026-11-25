@@ -9,6 +9,7 @@ import { KIOSKS } from '../../kernel/seed.js';
 import { clsx } from '../../kernel/util.js';
 import { Icon, Logo, ScaleBox, Tag, Tabs, IconButton } from '../../ui/components.jsx';
 import { useSoundscape } from '../../ui/media.jsx';
+import { LOGO } from '../../ui/logo-data.js';
 import { KioskScreen, SCREEN_W, SCREEN_H } from './app.jsx';
 
 // Pomocnik wyłącznie do testów automatycznych (Playwright): dostęp do API i stanu.
@@ -141,7 +142,7 @@ function Totem({ kiosk, device, sound, children }) {
         <rect x="127" y="769" width="220" height="7" rx="2" fill="rgba(255,255,255,.22)" />
         {sensors.map((x) => <circle key={x} cx={x} cy="781.5" r="3.2" fill="#2f3d52" stroke="#c9d6e6" stroke-width=".6" />)}
         <rect x="218" y="813" width="38" height="45" rx="4" fill="#4b4f55" stroke="#62676d" stroke-width="1" />
-        <text x="237" y="834" text-anchor="middle" font-size="7" font-weight="700" fill="#d6dad8">FPŻ</text>
+        <svg x="230" y="818" width="14" height="15" viewBox={LOGO.mark.box.join(' ')} aria-hidden="true"><path d={LOGO.mark.d} fill="#d6dad8" /></svg>
         <text x="237" y="846" text-anchor="middle" font-size="5" fill="#b9bfbc">{kiosk.id}</text>
         <circle cx="300" cy="835" r="3" class={`k-totem__led is-${led}`} />
         {/* linie wymiarowe (wysokości odbiorców) */}

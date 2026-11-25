@@ -116,7 +116,7 @@
 /* Nagłówki */
 .ep-kiosk .k-welcome { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 92px 0 52px; margin-bottom: 52px; border-bottom: 2px solid var(--c-line); }
 .ep-kiosk .k-welcome h1 { font-size: var(--fs-3xl); color: var(--k-ink); }
-.ep-kiosk .k-welcome .fpz-logo { --u: 1.6px; }
+.ep-kiosk .k-welcome .fpz-logo { --u: 2.2px; }
 .ep-kiosk .k-head { display: flex; align-items: center; gap: 20px; padding: 88px 0 30px; margin-bottom: 44px; border-bottom: 2px solid var(--c-line); }
 .ep-kiosk .k-title { flex: 1; min-width: 0; font-size: var(--fs-2xl); color: var(--k-ink); overflow-wrap: anywhere; }
 .ep-kiosk .k-head__right { flex: none; }
@@ -426,7 +426,7 @@
 .ep-kiosk .k-plate__box h1 { font-size: var(--fs-3xl); color: var(--k-ink, var(--c-text)); }
 .ep-kiosk .k-plate__box p { font-size: var(--fs-md); max-width: 700px; }
 .ep-kiosk .k-plate__en { color: var(--c-text-3); font-size: var(--fs-sm) !important; }
-.ep-kiosk .k-plate .fpz-logo { --u: 1.6px; }
+.ep-kiosk .k-plate .fpz-logo { --u: 2.2px; }
 .ep-kiosk .k-attract { position: absolute; inset: 0; z-index: 80; cursor: pointer; animation: k-fade .5s ease; }
 .ep-kiosk .k-attract__band { position: absolute; inset: 0; }
 .ep-kiosk .k-attract__band .fpz-band__pattern { animation: k-drift 40s linear infinite alternate; }

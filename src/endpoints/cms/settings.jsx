@@ -11,17 +11,17 @@ import { readFile, fmtSize, imgLimit, isRemote } from './content.jsx';
 export function Identity() {
   const s = useStore(); const { api, toast } = useClient(); const run = useRun();
   const up = async (e) => { const f = e.currentTarget.files?.[0]; e.currentTarget.value = ''; if (!f) return; if (!/^image\//.test(f.type)) return toast('Wybierz plik graficzny (SVG, PNG, JPG, WebP).', 'error'); const lim = imgLimit(getState(), 600 * 1024); if (f.size > lim) return toast(`Plik ma ${fmtSize(f.size)} – maksymalnie ${fmtSize(lim)}${isRemote(getState()) ? ' (pilotaż serwerowy)' : ''}.`, 'error');
-    const dataUrl = await readFile(f); run(api.cms.setSetting({ logo: dataUrl }), `Wgrano logotyp „${f.name}” – widoczny we wszystkich końcówkach`); };
-  return (<div class="c-page"><Head title="Identyfikacja wizualna" sub="Logotyp przekazany przez Zamawiającego – wyświetlany w aplikacji, na stronie WWW, w kioskach, na ekranach LCD i w panelach" />
+    const dataUrl = await readFile(f); run(api.cms.setSetting({ logo: dataUrl }), `Wgrano własny plik logo „${f.name}” – zastępuje wbudowane logo we wszystkich końcówkach`); };
+  return (<div class="c-page"><Head title="Identyfikacja wizualna" sub="Logo Fabryki Pełnej Życia – wyświetlane w aplikacji, na stronie WWW, w kioskach, na ekranach LCD i w panelach" />
     <div class="c-grid2">
-      <section class="c-panel"><h3>Logotyp</h3>
+      <section class="c-panel"><h3>Logo</h3>
         <div class="c-logopv"><div class="c-logopv__light"><Logo /></div><div class="c-logopv__dark"><Logo onDark /></div></div>
-        <p class="c-small c-muted">{s.settings.logo ? 'Wgrany plik Zamawiającego.' : 'Obecnie wyświetlany jest neutralny znak zastępczy (prototyp nie odtwarza znaku FPŻ).'}</p>
+        <p class="c-small c-muted">{s.settings.logo ? 'Wyświetlany jest własny plik wgrany w panelu – zastępuje wbudowane logo; na ciemnych tłach jest automatycznie odwracany na biały.' : 'Domyślnie wyświetlane jest wbudowane logo Fabryki Pełnej Życia – w wersji ciemnej na jasnym tle i białej na ciemnym (kolor dobierany automatycznie). Można je zastąpić własnym plikiem.'}</p>
         <div class="c-row">
-          <label class="fpz-btn fpz-btn--primary fpz-btn--sm c-filebtn"><Icon name="upload" size={15} />Wgraj logotyp<input type="file" accept="image/*" class="c-sr" data-testid="logo-upload" onChange={up} /></label>
-          <Button size="sm" variant="secondary" icon="undo" disabled={!s.settings.logo} onClick={() => run(api.cms.setSetting({ logo: null }), 'Przywrócono znak zastępczy')}>Przywróć znak zastępczy</Button>
+          <label class="fpz-btn fpz-btn--primary fpz-btn--sm c-filebtn"><Icon name="upload" size={15} />Wgraj własny plik<input type="file" accept="image/*" class="c-sr" data-testid="logo-upload" onChange={up} /></label>
+          <Button size="sm" variant="secondary" icon="undo" disabled={!s.settings.logo} onClick={() => run(api.cms.setSetting({ logo: null }), 'Przywrócono wbudowane logo Fabryki Pełnej Życia')}>Przywróć wbudowane logo</Button>
         </div>
-        <Notice tone="info">Zalecany plik SVG lub PNG z przezroczystym tłem, w wersji poziomej; do {isRemote(s) ? '300 kB – w pilotażu plik trafia do wspólnego stanu na serwerze' : '600 kB'}.</Notice>
+        <Notice tone="info">Własny plik: jednobarwny SVG lub PNG z przezroczystym tłem, w wersji poziomej – na ciemnych tłach (i w motywie nocnym oraz wysokiego kontrastu) jest automatycznie odwracany na biały; do {isRemote(s) ? '300 kB – w pilotażu plik trafia do wspólnego stanu na serwerze' : '600 kB'}.</Notice>
       </section>
       <section class="c-panel"><h3>Zastosowanie</h3><ul class="c-links"><li><Icon name="phone" size={14} /> aplikacja mobilna – nagłówek i ekran startowy</li><li><Icon name="globe" size={14} /> strona WWW / PWA – nagłówek i stopka</li><li><Icon name="monitor" size={14} /> kioski 55″ – nagłówek z pasem identyfikacji</li><li><Icon name="tv" size={14} /> ekrany LCD – plansze informacyjne</li><li><Icon name="ticket" size={14} /> e-maile z biletami (wersja docelowa)</li></ul></section>
     </div>

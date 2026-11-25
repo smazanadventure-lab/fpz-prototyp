@@ -20,6 +20,7 @@
 .ep-validator .v-login { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 16px; padding: 24px 36px 40px; animation: fpz-rise .25s ease; }
 .ep-validator .v-login h1 { font-size: 26px; }
 .ep-validator .v-login__logo { margin-bottom: 8px; }
+.ep-validator .v-login__logo .fpz-logo { --u: 1.4px; }
 .ep-validator .v-login .fpz-input, .ep-validator .v-login .fpz-btn { font-size: 17px; min-height: 52px; }
 .ep-validator .v-login__quick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; font-weight: 700; color: var(--c-text-3); }
 .ep-validator .v-login__quick button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: var(--r-pill); background: var(--c-surface-2); color: var(--c-accent-soft-text); font-weight: 700; transition: background .15s, box-shadow .15s; }

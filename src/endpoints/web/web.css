@@ -493,7 +493,6 @@
 @container w (max-width: 600px) {
   .ep-web .w-wrap { padding: 0 var(--sp-4); }
   .ep-web .w-bar__in { gap: var(--sp-2); min-height: calc(var(--u) * 64); }
-  .ep-web .w-bar__logo .fpz-logo__txt { display: none; }
   .ep-web .w-hero { padding: var(--sp-5) 0; }
   .ep-web .w-hero__card { padding: var(--sp-5); }
   .ep-web .w-hero__card h1 { font-size: var(--fs-2xl); }
@@ -536,3 +535,5 @@
   .ep-web .w-scroll { height: auto; overflow: visible; }
 }
 .ep-web .w-lb__stage .fpz-media { width: min(100%, calc((var(--w-vh, 800px) - var(--u) * 300) * 16 / 9)); margin: 0 auto; }
+/* bardzo wąsko: z pełnego logo w nagłówku zostaje sam sygnet */
+@container w (max-width: 360px) { .ep-web .w-bar__logo .fpz-logo__mark--full { aspect-ratio: 123.9 / 140.5; } }

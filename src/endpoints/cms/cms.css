@@ -379,6 +379,7 @@
 .ep-cms .c-logopv__light { background: #fff; color: var(--c-deep); }
 .ep-cms .c-logopv__dark { background: var(--c-deep); color: #fff; }
 .ep-cms .c-logopv .fpz-logo__img { max-height: calc(var(--u) * 72); max-width: 100%; }
+.ep-cms .c-logopv .fpz-logo__mark { height: calc(var(--u) * 56); max-width: 100%; }
 .ep-cms .c-matrix td:first-child { white-space: nowrap; }
 .ep-cms .fpz-notice { margin: 0; }
 .ep-cms .c-theme { display: flex; gap: 2px; }

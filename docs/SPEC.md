@@ -91,7 +91,7 @@ Semantyczne `button`/`a`/nagłówki/listy, `aria-label` dla przycisków-ikon, wi
 
 ## 7. Uczciwość prototypu
 - To wersja testowa: logowanie, płatności, kamera, Bluetooth, GPS, wideo i połączenie z tłumaczem są **symulowane** – oznaczaj to krótką, dyskretną adnotacją tam, gdzie użytkownik mógłby wziąć symulację za prawdziwą usługę (np. ekran operatora płatności: „Środowisko testowe – nie podawaj prawdziwych danych karty”; bez pól na numer karty – wybór metody i przyciski „Zatwierdź/Odrzuć płatność testową”, kod BLIK generowany).
-- Nie rysuj ani nie odtwarzaj logotypu FPŻ, herbu miasta ani znaków firm – używaj `<Logo />` (znak zastępczy; właściwy plik wgrywa się w CMS). Nie osadzaj zdjęć z internetu.
+- Logo FPŻ: wyłącznie przez `<Logo />` (wbudowany znak przekazany przez Zamawiającego – `src/ui/logo-data.js`, wektoryzacja pliku z `docs/logo/zrodlo/`; kolor z `currentColor`: ciemny na jasnym tle, biały z `onDark` i w motywach nocnym/kontrastowym; `compact` = sam sygnet; plik wgrany w CMS ma pierwszeństwo). Nie przerysowuj znaku ręcznie, nie rysuj herbu miasta ani znaków firm. Nie osadzaj zdjęć z internetu.
 - Mapy są schematyczne (adnotacja `t('c.schematicMap')`).
 
 ## 8. Jakość

@@ -93,14 +93,19 @@
 .fpz-band__pattern { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--c-band-line); }
 .fpz-band__content { position: relative; }
 
-/* ── logotyp (miejsce na znak przekazany przez Zamawiającego) ── */
-.fpz-logo { display: inline-flex; align-items: center; gap: calc(var(--u) * 7); color: var(--c-text); text-decoration: none; }
-.fpz-logo__mark { height: calc(var(--u) * 34); width: auto; flex: none; }
-.fpz-logo__img { height: calc(var(--u) * 36); width: auto; max-width: calc(var(--u) * 170); object-fit: contain; }
-.fpz-logo__txt { display: flex; flex-direction: column; line-height: 1; }
-.fpz-logo__txt b { font-size: calc(var(--u) * 16); font-weight: 700; letter-spacing: -.01em; }
-.fpz-logo__txt span { font-size: calc(var(--u) * 9.5); line-height: 1.12; margin-top: calc(var(--u) * 1); }
+/* ── logotyp Fabryki Pełnej Życia (wbudowany znak z src/ui/logo-data.js albo plik wgrany w CMS) ──
+   Kolor przez currentColor: na jasnym tle kolor tekstu (prawie czarny – oficjalna wersja czarna), z onDark biały,
+   w motywie nocnym i wysokiego kontrastu – jasny kolor tekstu motywu. Pełne logo ma proporcje 400 : 140,5 (≈ 2,85 : 1). */
+.fpz-theme { --fpz-logo-img-filter: none; }
+.fpz-theme[data-theme="night"], .fpz-theme[data-contrast="high"], .fpz-logo--on-dark { --fpz-logo-img-filter: brightness(0) invert(1); }
+.fpz-logo { display: inline-flex; align-items: center; gap: calc(var(--u) * 7); color: var(--c-text); text-decoration: none; line-height: 0; }
+.fpz-logo__mark { height: calc(var(--u) * 34); width: auto; flex: none; display: block; overflow: hidden; }
+.fpz-logo__mark--full { height: calc(var(--u) * 40); }
+/* plik z CMS (jednobarwny, przezroczyste tło): na ciemnych tłach odwracany na biały */
+.fpz-logo__img { height: calc(var(--u) * 36); width: auto; max-width: calc(var(--u) * 170); object-fit: contain; filter: var(--fpz-logo-img-filter, none); }
 .fpz-logo--on-dark { color: #fff; }
+/* wąskie miejsca: z pełnego logo może zostać sam sygnet – lokalnie `aspect-ratio: 123.9 / 140.5` na .fpz-logo__mark--full
+   (SVG ma preserveAspectRatio="xMinYMid slice", więc kadr przycina napis bez zmiany skali) */
 
 /* ── QR ── */
 .fpz-qr { display: inline-flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
