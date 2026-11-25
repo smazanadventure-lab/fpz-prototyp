@@ -11,12 +11,18 @@ const LOCAL = new Set(['clients', 'env', 'net', 'deviceId', 'build', 'player']);
 const CORS_ORIGINS = /^(https?:\/\/localhost(:\d+)?|capacitor:\/\/localhost|ionic:\/\/localhost)$/; // aplikacja APK (WebView) i serwer deweloperski
 const json = (body, status, headers) => new Response(JSON.stringify(body), { status: status || 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers } });
 
+/** Jednorazowe poprawki danych na serwerze – każda wykonuje się raz, przy pierwszym żądaniu po wdrożeniu (nowe dane mają je od razu odnotowane). */
+const MIGRATIONS = [
+  // logo Fabryki jest wbudowane w system – zdejmujemy plik wgrany wcześniej w CMS, który miał przed nim pierwszeństwo
+  { id: '2026-11-25-logo-wbudowane', run: (d) => { if (d.settings) d.settings.logo = null; } },
+];
+
 function seedDoc() {
   const seed = makeSeed(); const data = {};
   for (const [k, v] of Object.entries(seed)) if (!LOCAL.has(k)) data[k] = v;
   data.players = {}; data.envShared = { simTime: seed.env.simTime ?? null, weather: seed.env.weather ?? null }; data.apiLog = [];
   const keyVer = {}; for (const k of Object.keys(data)) keyVer[k] = 1;
-  return { schema: SEED_SCHEMA, epoch: 'e' + Date.now().toString(36), version: 1, keyVer, data, recent: [], seededAt: new Date().toISOString() };
+  return { schema: SEED_SCHEMA, epoch: 'e' + Date.now().toString(36), version: 1, keyVer, data, recent: [], migrations: MIGRATIONS.map((m) => m.id), seededAt: new Date().toISOString() };
 }
 /** Stan w kształcie oczekiwanym przez operacje: dane wspólne + kontekst wywołującego (sesja końcówki, czujniki telefonu, gracz urządzenia). */
 function compose(doc, deviceId, req) {
@@ -56,10 +62,20 @@ function view(doc, { since, deviceId, epoch, role }) {
 }
 
 export function createHandler(getStorage) {
-  async function load(storage) {
-    const r = await storage.read(); if (r && r.doc && r.doc.schema === SEED_SCHEMA) return r;
+  async function seed(storage, r) {
     const doc = seedDoc(); const etag = await storage.write(doc, r ? r.etag : null, !!r); if (etag) return { doc, etag };
     const again = await storage.read(); if (again) return again; throw new Error('Nie udało się założyć danych początkowych.');
+  }
+  async function load(storage) {
+    let r = await storage.read(); if (!(r && r.doc && r.doc.schema === SEED_SCHEMA)) return seed(storage, r);
+    for (let i = 0; i < 4; i++) { // zaległe poprawki danych (zapis warunkowy – gdy ubiegnie nas inne żądanie, sprawdzamy ponownie)
+      const todo = MIGRATIONS.filter((m) => !(r.doc.migrations || []).includes(m.id)); if (!todo.length) return r;
+      const before = snapshot(r.doc.data); for (const m of todo) m.run(r.doc.data);
+      r.doc.migrations = [...(r.doc.migrations || []), ...todo.map((m) => m.id)]; bump(r.doc, before);
+      const etag = await storage.write(r.doc, r.etag); if (etag) return { doc: r.doc, etag };
+      r = await storage.read(); if (!r) break;
+    }
+    return r || seed(storage, null);
   }
   /** Odczyt–zmiana–zapis z kontrolą wersji (etag); przy kolizji z innym zapisem całość jest powtarzana na świeżym stanie. */
   async function mutate(storage, fn) {
@@ -83,7 +99,7 @@ export function createHandler(getStorage) {
       const storage = getStorage(); const q = Object.fromEntries(url.searchParams);
       if (route === 'info' && request.method === 'GET') {
         const { doc } = await load(storage); const d = doc.data;
-        return json({ ok: true, service: 'fpz-pilot', schema: doc.schema, epoch: doc.epoch, version: doc.version, seededAt: doc.seededAt, counts: { entries: d.entries.length, events: d.events.length, orders: d.orders.length, tickets: d.tickets.length, players: Object.keys(d.players).length, devices: d.devices.length } }, 200, cors);
+        return json({ ok: true, service: 'fpz-pilot', schema: doc.schema, epoch: doc.epoch, version: doc.version, seededAt: doc.seededAt, logo: d.settings?.logo ? 'plik z CMS' : 'wbudowane', migrations: doc.migrations || [], counts: { entries: d.entries.length, events: d.events.length, orders: d.orders.length, tickets: d.tickets.length, players: Object.keys(d.players).length, devices: d.devices.length } }, 200, cors);
       }
       if (route === 'sync' && request.method === 'GET') {
         const ident = { since: +q.since || 0, epoch: q.epoch || '', deviceId: q.device || 'anon', role: q.role === 'app' ? 'app' : 'full' };
