@@ -52,6 +52,12 @@ async function token(cfg) {
 }
 const authed = async (cfg, path, init, step) => http(cfg.api + path, { ...init, headers: { accept: 'application/json', authorization: 'Bearer ' + (await token(cfg)), ...(init?.headers || {}) } }, step);
 
+/** Czy serwer w ogóle dosięga Tpay (kody HTTP, bez kluczy): środowisko testowe bywa niedostępne spoza wybranych sieci. */
+export async function probeReach() {
+  const one = async (url) => { const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 6000); try { const r = await fetch(url, { headers: { 'user-agent': UA }, signal: ctl.signal, redirect: 'manual' }); return r.status; } catch (e) { return e?.name === 'AbortError' ? 'timeout' : 'błąd sieci'; } finally { clearTimeout(to); } };
+  const out = {}; await Promise.all(Object.entries(ENVS).map(async ([k, v]) => { const [api, cert] = await Promise.all([one(v.api + '/'), one(v.secure + '/x509/tpay-jws-root.pem')]); out[k] = { api, cert }; }));
+  return out;
+}
 /** Sprawdzenie kluczy: próba pobrania tokenu. */
 export async function checkAuth(cfg) { tokenCache = null; await token(cfg); return true; }
 

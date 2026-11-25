@@ -1,6 +1,7 @@
 # Sprawdzenie integracji z prawdziwym środowiskiem testowym Tpay (sandbox): token, utworzenie i odczyt transakcji,
-# certyfikaty powiadomień. Nie wykonuje żadnej płatności. Uruchamia się po zmianach w kodzie płatności oraz ręcznie
-# (Actions → „Tpay sandbox” → Run workflow).
+# certyfikaty powiadomień. Nie wykonuje żadnej płatności. Uruchamiany ręcznie (Actions → „Tpay sandbox” → Run workflow).
+# Uwaga: zapora sandboxa Tpay odrzuca połączenia z maszyn GitHub Actions (HTTP 403) – wtedy test kończy się ostrzeżeniem,
+# a miarodajne jest sprawdzenie z serwera systemu: https://<adres>/api/pay/check (pola „reach” i „auth”).
 #
 # Klucze: sekrety repozytorium TPAY_CLIENT_ID / TPAY_CLIENT_SECRET (własne konto sandbox). Gdy ich nie ma, test używa
 # publicznych kluczy demonstracyjnych, które Tpay podaje w dokumentacji swojej biblioteki
@@ -9,7 +10,7 @@ name: Tpay sandbox
 on:
   workflow_dispatch:
   push:
-    branches: [main, tpay]
+    branches: [tpay]
     paths: ['server/tpay.mjs', 'test/tpay-live.mjs', '.github/workflows/tpay-sandbox.yml']
 jobs:
   tpay-sandbox:

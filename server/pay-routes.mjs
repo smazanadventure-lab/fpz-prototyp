@@ -7,7 +7,7 @@
 // Bilety powstają wyłącznie po potwierdzeniu z Tpay: podpisanym powiadomieniu albo stanie transakcji odczytanym z API Tpay.
 import { setState } from '../src/kernel/store.js';
 import { settleOrder, refundByOperator } from '../src/kernel/api.js';
-import { tpayConfig, createTransaction, getTransaction, isPaid, sameAmount, verifyJws, parseNotification, checkAuth, TpayError } from './tpay.mjs';
+import { tpayConfig, createTransaction, getTransaction, isPaid, sameAmount, verifyJws, parseNotification, checkAuth, probeReach, TpayError } from './tpay.mjs';
 
 const ORDER_ID = /^[A-Za-z0-9][\w-]{2,59}$/;
 const REUSE_MS = 20 * 60e3; // ponowne wejście w płatność w tym czasie wraca do tej samej transakcji
@@ -58,9 +58,11 @@ export function createPayRoutes({ load, mutate, compose, decompose, json }) {
     const cfg = tpayConfig();
 
     if (route === 'pay/check' && request.method === 'GET') {
-      if (!cfg) return json({ ok: true, provider: null, message: 'Klucze Tpay nie są ustawione – działa płatność symulowana.' }, 200, cors);
-      try { await checkAuth(cfg); return json({ ok: true, provider: 'tpay', env: cfg.mode, auth: 'ok', md5: cfg.securityCode !== null, notifyUrl: url.origin + '/api/pay/notify' }, 200, cors); }
-      catch (e) { return json({ ok: false, provider: 'tpay', env: cfg.mode, auth: 'error', message: String(e?.message || e) }, 200, cors); }
+      // reach: czy ten serwer dosięga Tpay (kody HTTP stron obu środowisk) – przydatne, zanim ktokolwiek ustawi klucze
+      const reach = cfg?.mode === 'mock' ? undefined : await probeReach().catch(() => undefined); const region = (() => { try { return process.env.AWS_REGION || null; } catch { return null; } })();
+      if (!cfg) return json({ ok: true, provider: null, message: 'Klucze Tpay nie są ustawione – działa płatność symulowana.', reach, region }, 200, cors);
+      try { await checkAuth(cfg); return json({ ok: true, provider: 'tpay', env: cfg.mode, auth: 'ok', md5: cfg.securityCode !== null, notifyUrl: url.origin + '/api/pay/notify', reach, region }, 200, cors); }
+      catch (e) { return json({ ok: false, provider: 'tpay', env: cfg.mode, auth: 'error', message: String(e?.message || e).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 240), reach, region }, 200, cors); }
     }
 
     if (route === 'pay/start' && request.method === 'POST') {
