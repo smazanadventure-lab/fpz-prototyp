@@ -13,6 +13,7 @@ const ENVS = {
   sandbox: { api: 'https://openapi.sandbox.tpay.com', secure: 'https://secure.sandbox.tpay.com' },
   production: { api: 'https://api.tpay.com', secure: 'https://secure.tpay.com' },
 };
+const UA = 'fpz-prototyp/0.5 (+https://fpz-prototyp.netlify.app; Tpay OpenAPI)'; // część zapór odrzuca żądania bez czytelnego nagłówka User-Agent
 const env = (k) => { try { return (process.env[k] ?? '').trim(); } catch { return ''; } };
 
 /** Konfiguracja Tpay albo null, gdy kluczy nie ustawiono (wtedy system używa płatności symulowanej). */
@@ -34,7 +35,7 @@ export class TpayError extends Error {
 async function http(url, init, step) {
   const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 12000);
   try {
-    const r = await fetch(url, { ...init, signal: ctl.signal }); const text = await r.text(); let body = null; try { body = text ? JSON.parse(text) : null; } catch { body = text.slice(0, 300); }
+    const r = await fetch(url, { ...init, headers: { 'user-agent': UA, ...(init?.headers || {}) }, signal: ctl.signal }); const text = await r.text(); let body = null; try { body = text ? JSON.parse(text) : null; } catch { body = text.slice(0, 300); }
     if (!r.ok) throw new TpayError(step, r.status, body);
     return body;
   } catch (e) { if (e instanceof TpayError) throw e; throw new TpayError(step, 0, e?.name === 'AbortError' ? 'przekroczono czas oczekiwania' : String(e?.message || e)); } finally { clearTimeout(to); }
@@ -81,7 +82,7 @@ const pemCache = new Map(); // adres → { pem, at }
 async function fetchPem(url) {
   const hit = pemCache.get(url); if (hit && Date.now() - hit.at < 3600e3) return hit.pem;
   const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 8000);
-  try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw new Error('HTTP ' + r.status); const pem = await r.text(); if (!/BEGIN CERTIFICATE/.test(pem)) throw new Error('to nie jest certyfikat'); pemCache.set(url, { pem, at: Date.now() }); return pem; } finally { clearTimeout(to); }
+  try { const r = await fetch(url, { headers: { 'user-agent': UA }, signal: ctl.signal }); if (!r.ok) throw new Error('HTTP ' + r.status); const pem = await r.text(); if (!/BEGIN CERTIFICATE/.test(pem)) throw new Error('to nie jest certyfikat'); pemCache.set(url, { pem, at: Date.now() }); return pem; } finally { clearTimeout(to); }
 }
 /** Kontrola certyfikatu podpisu: wystawiony przez główny certyfikat Tpay i ważny dziś. */
 export function checkChain(certPem, rootPem, now = Date.now()) {

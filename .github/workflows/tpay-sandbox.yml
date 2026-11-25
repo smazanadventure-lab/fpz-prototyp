@@ -19,6 +19,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      - name: Dostępność sandboxa z tej maszyny (kody HTTP)
+        run: |
+          for u in https://secure.sandbox.tpay.com/x509/tpay-jws-root.pem https://openapi.sandbox.tpay.com/ https://secure.tpay.com/x509/tpay-jws-root.pem https://api.tpay.com/; do
+            a=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$u"); b=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36' "$u"); c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -A 'fpz-prototyp/0.5' "$u")
+            echo "::notice title=Tpay dostępność::$u → curl: $a, UA przeglądarki: $b, UA fpz-prototyp: $c"
+          done
+          t=$(curl -s -o /tmp/auth.txt -w '%{http_code}' --max-time 15 -X POST https://openapi.sandbox.tpay.com/oauth/auth -H 'content-type: application/x-www-form-urlencoded' -H 'accept: application/json' --data "client_id=$TPAY_CLIENT_ID&client_secret=$TPAY_CLIENT_SECRET"); echo "::notice title=Tpay dostępność::POST /oauth/auth (curl) → $t, początek odpowiedzi: $(head -c 120 /tmp/auth.txt | tr -d '\n' | sed 's/access_token\":\"[^\"]*/access_token\":\"…/')"
+          echo "::notice title=Tpay dostępność::adres wychodzący maszyny: $(curl -s --max-time 10 https://api.ipify.org || echo '?')"
+        env:
+          TPAY_CLIENT_ID: ${{ secrets.TPAY_CLIENT_ID || '1010-e5736adfd4bc5d8c' }}
+          TPAY_CLIENT_SECRET: ${{ secrets.TPAY_CLIENT_SECRET || '493e01af815383a687b747675010f65d1eefaeb42f63cfe197e7b30f14a556b7' }}
       - name: Token, transakcja, odczyt, certyfikaty
         env:
           TPAY_ENV: sandbox

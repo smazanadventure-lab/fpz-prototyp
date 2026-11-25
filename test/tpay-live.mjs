@@ -24,7 +24,7 @@ if (tx) {
 // certyfikaty podpisu powiadomień – te same adresy, z których korzysta serwer przy weryfikacji JWS
 for (const [label, secure] of [[cfg.mode, cfg.secure], ...(cfg.mode === 'sandbox' ? [['production', 'https://secure.tpay.com']] : [])]) {
   try {
-    const [cert, root] = await Promise.all(['notifications-jws.pem', 'tpay-jws-root.pem'].map(async (f) => { const r = await fetch(`${secure}/x509/${f}`); if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`); return r.text(); }));
+    const [cert, root] = await Promise.all(['notifications-jws.pem', 'tpay-jws-root.pem'].map(async (f) => { const r = await fetch(`${secure}/x509/${f}`, { headers: { 'user-agent': 'fpz-prototyp/0.5 (+https://fpz-prototyp.netlify.app; Tpay OpenAPI)' } }); if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`); return r.text(); }));
     const c = new crypto.X509Certificate(cert); const chain = checkChain(cert, root);
     say(chain.ok, `certyfikat powiadomień (${label})`, chain.ok ? `wystawca zgodny z certyfikatem głównym; klucz ${c.publicKey.asymmetricKeyType} ${c.publicKey.asymmetricKeyDetails?.modulusLength || ''}; ważny do ${c.validTo}` : `${chain.reason}; issued=${c.checkIssued(new crypto.X509Certificate(root))} verify=${c.verify(new crypto.X509Certificate(root).publicKey)} subject=${c.subject.replace(/\n/g, ',')} issuer=${c.issuer.replace(/\n/g, ',')}`);
   } catch (e) { say(false, `certyfikat powiadomień (${label})`, String(e.message || e)); }
