@@ -34,20 +34,26 @@ Netlify → projekt → **Project configuration → Environment variables**, pot
 Konto testowe: <https://register.sandbox.tpay.com>, panel: <https://panel.sandbox.tpay.com>.
 Stan konfiguracji bez ujawniania kluczy: `GET /api/pay/check` (pola `provider`, `env`, `auth`, `reach`, `region`).
 
-## Ważne: sandbox Tpay a serwer w USA
+## Ważne: sandbox Tpay odrzuca serwery w chmurze
 
-Środowisko testowe Tpay (`openapi.sandbox.tpay.com`, `secure.sandbox.tpay.com`) **odrzuca połączenia z serwerów w USA**
-kodem HTTP 403 (zapora). Sprawdzone 25.11.2026: z funkcji Netlify (region us-east-2) i z maszyn GitHub Actions – 403;
-środowisko produkcyjne (`api.tpay.com`, `secure.tpay.com`) odpowiada poprawnie.
+Środowisko testowe Tpay (`openapi.sandbox.tpay.com`, `secure.sandbox.tpay.com`) odpowiada kodem HTTP 403 (zapora)
+na połączenia z serwerów, na których działa ten system. Sprawdzone 25.11.2026:
 
-Funkcje Netlify w planie Free działają w USA. Dlatego płatności mają osobną funkcję (`netlify/functions/pay.mjs`)
-z ustawionym regionem Frankfurt (`region: 'fra'`) – Netlify stosuje wybór regionu w planach Pro i Enterprise.
-Możliwości:
+- funkcja Netlify (AWS, region us-east-2) – 403,
+- maszyny GitHub Actions (Azure, USA) – 403,
+- węzeł brzegowy Netlify najbliższy przeglądarce w Polsce (`GET /api/pay/reach-edge`) – 403,
+- środowisko produkcyjne (`api.tpay.com`, `secure.tpay.com`) – odpowiada poprawnie z tych samych miejsc.
 
-- plan Netlify Pro → funkcja płatności działa we Frankfurcie (czy sandbox przyjmie to połączenie, pokaże `/api/pay/check`),
-- klucze produkcyjne Tpay (`TPAY_ENV=production`) – działają z obecnego serwera, ale to prawdziwe pieniądze,
-- `GET /api/pay/reach-edge` otwarte z przeglądarki w Polsce pokazuje, czy sandbox jest osiągalny z europejskiego węzła
-  brzegowego Netlify; jeśli tak, wywołania Tpay można przenieść do funkcji brzegowej (do zrobienia).
+Wniosek: blokada nie dotyczy tylko USA, więc przeniesienie funkcji do regionu europejskiego (Netlify Pro, Frankfurt)
+najpewniej nic nie da. Integracja przez Open API działa z tego serwera wyłącznie z kluczami produkcyjnymi.
+
+Możliwe drogi:
+
+- **klucze produkcyjne** (`TPAY_ENV=production`) – obecny kod, prawdziwe pieniądze (test małą kwotą i zwrot w panelu),
+- **przekierowanie przez przeglądarkę kupującego** (starsza metoda Tpay „bez API”: serwer podpisuje parametry sumą md5,
+  przeglądarka kupującego sama otwiera stronę Tpay; serwer nie łączy się z Tpay, a powiadomienie sprawdza sumą md5
+  i podpisem JWS z certyfikatami zapisanymi w repozytorium) – nadaje się do sandboxa; do zrobienia,
+- pytanie do wsparcia Tpay, czy sandbox da się otworzyć dla adresów serwera.
 
 ## Co sprawdzono, a czego nie
 
