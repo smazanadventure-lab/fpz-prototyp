@@ -107,6 +107,7 @@ function Studio() {
   const [phase, setPhase] = useState('setup'); // setup | starting | onair | ended
   const [stream, setStream] = useState(null); const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null); const [warns, setWarns] = useState({}); const [ended, setEnded] = useState(null);
+  const [pvSize, setPvSize] = useState(null); // [szer, wys] obrazu z podglądu – telefon w pionie czy w poziomie
   const [viewers, setViewers] = useState(0); const [muted, setMuted] = useState(false); const [since, setSince0] = useState(0); const sinceRef = useRef(0); const setSince = (t) => { sinceRef.current = t; setSince0(t); }; const [confirm, setConfirm] = useState(null);
   const streamRef = useRef(null); const bcRef = useRef(null); const idRef = useRef(null); const wakeRef = useRef(null);
   const rep = useRef({ last: 0, t: null, n: 0 }); const optsRef = useRef(null); optsRef.current = { facing, deviceId, q, mic };
@@ -211,11 +212,16 @@ function Studio() {
   const mirror = (set.facingMode || (deviceId ? '' : facing)) === 'user';
   const res = set.width ? `${set.width}×${set.height}` : null;
   const hasAudio = !!stream?.getAudioTracks().length;
+  // obraz wychodzący w pionie (rozmiar z podglądu; zanim znany – z ustawień ścieżki) → na ekranach poziomych będzie wąski
+  const portrait = !!stream && (pvSize ? pvSize[1] > pvSize[0] : !!set.width && set.width < set.height);
+  const onSize = (w, h) => setPvSize((a) => (a && a[0] === w && a[1] === h ? a : [w, h]));
+  const orient = <p class="b-orient" data-testid="b-orient"><Icon name="rotate" size={15} />Trzymaj telefon poziomo – obraz wypełni ekrany.</p>;
+  const portraitNote = portrait && <div class="b-portrait" role="status" data-testid="b-portrait"><Icon name="smartphone" size={16} /><span>Nadajesz w pionie – na ekranach obraz będzie wąski.</span></div>;
 
   if (phase === 'onair') {
     const el = (now.getTime() - since) / 1000;
     return (<div class="b-air" data-testid="b-onair">
-      <Preview stream={stream} mirror={mirror} />
+      <Preview stream={stream} mirror={mirror} onSize={onSize} />
       <header class="b-air__top">
         <span class="b-onair" role="status"><i />NA ŻYWO</span>
         <span class="b-pill b-pill--time" data-testid="b-elapsed"><Icon name="clock" size={15} />{fmtDuration(el)}</span>
@@ -223,6 +229,7 @@ function Studio() {
       </header>
       <div class="b-air__title"><b>{live.title?.pl || title}</b>{res && <small>{res}{muted ? ' · mikrofon wyciszony' : !hasAudio ? ' · bez dźwięku' : ''}</small>}</div>
       <div class="b-air__warns" aria-live="assertive">
+        {portraitNote || <div class="b-air__orient">{orient}</div>}
         {warns.net && <Warn icon="wifiOff" onClose={() => warn('net', false)} testid="b-warn-net">Słabe połączenie z serwerem – nowi odbiorcy mogą nie dołączyć, a połączeni mogą stracić obraz. Sprawdź Wi-Fi; połączenie wznowi się samo.</Warn>}
         {warns.bg && <Warn icon="alert" onClose={() => warn('bg', false)} testid="b-warn-bg">Strona nadawania była w tle ({warns.bg} s). Telefon wstrzymuje wtedy kamerę – odbiorcy widzieli zatrzymany obraz. Nie przełączaj aplikacji podczas transmisji.</Warn>}
         {warns.cam && <Warn icon="videoOff" testid="b-warn-cam">Kamera przestała nadawać obraz.<button type="button" class="b-link" onClick={() => swapVideo(optsRef.current)}>Uruchom kamerę ponownie</button></Warn>}
@@ -262,11 +269,12 @@ function Studio() {
     <div class="b-setup__grid">
       <div class="b-setup__pv">
         <div class="b-pv">
-          {stream ? <Preview stream={stream} mirror={mirror} />
+          {stream ? <Preview stream={stream} mirror={mirror} onSize={onSize} />
             : <div class="b-pv__off"><Icon name="camera" size={34} /><span>{busy ? 'Uruchamianie kamery…' : 'Podgląd kamery jest wyłączony'}</span>
               {!busy && <Button variant="mint" icon="camera" onClick={() => preview()} data-testid="b-preview">Włącz podgląd kamery</Button>}</div>}
           {stream && <span class="b-pv__tag">Podgląd{res ? ` · ${res}` : ''}{mirror ? ' · lustro' : ''}</span>}
         </div>
+        <div class="b-setup__orient">{orient}{portraitNote}</div>
       </div>
       <div class="b-setup__form">
         {err && <div class="b-err" role="alert" data-testid="b-error" data-code={err.code}><Icon name="circleAlert" size={20} /><div><b>{err.title}</b><p>{err.text}</p>{err.code !== 'server' && <Button size="sm" variant="secondary" icon="refresh" onClick={() => preview()}>Spróbuj ponownie</Button>}</div></div>}
@@ -306,9 +314,11 @@ function Studio() {
 }
 
 /** Obraz z kamery (bez dźwięku – tylko podgląd nadawcy); przednia kamera w lustrzanym odbiciu, jak w aparacie. */
-function Preview({ stream, mirror }) {
-  const ref = useRef(null);
+function Preview({ stream, mirror, onSize }) {
+  const ref = useRef(null); const sz = useRef(onSize); sz.current = onSize;
   useEffect(() => { const el = ref.current; if (!el) return; if (el.srcObject !== stream) el.srcObject = stream || null; if (stream) el.play?.()?.catch?.(() => {}); }, [stream]);
+  // rozmiar obrazu (zmienia się po obróceniu telefonu – zdarzenie resize)
+  useEffect(() => { const el = ref.current; if (!el) return undefined; const f = () => { if (el.videoWidth) sz.current?.(el.videoWidth, el.videoHeight); }; f(); el.addEventListener('resize', f); el.addEventListener('loadedmetadata', f); return () => { el.removeEventListener('resize', f); el.removeEventListener('loadedmetadata', f); }; }, []);
   return <video ref={ref} class={clsx('b-video', mirror && 'is-mirror')} muted autoplay playsInline aria-label="Podgląd kamery" data-testid="b-video" />;
 }
 function Warn({ icon, children, onClose, testid }) {

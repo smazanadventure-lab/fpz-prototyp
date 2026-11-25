@@ -10,6 +10,7 @@ import { KioskCtx, TakeHomeModal } from './common.jsx';
 import { Illustration } from '../../ui/illustrations.jsx';
 import { cap, Home, About, NewsView, MapScreen, InfoScreen, EventView, CategoryScreen, EntryView, GalleryScreen, VideosScreen, VideoView, TimelineScreen, PuzzleScreen } from './screens.jsx';
 import { SoundHome, SoundScreen, CalendarScreen } from './sound.jsx';
+import { setNowPlaying } from '../../kernel/presence.js';
 
 /** Czas bezczynności do włączenia wygaszacza (prototyp: 60 s; w testach można nadpisać window.__fpzKiosk.idleMs). */
 export const IDLE_MS = 60000;
@@ -64,6 +65,32 @@ function contextFor(stack, t, L) {
   if (r.v === 'sound') return { title: t('k.nav.sound'), items: [], base: [{ v: 'home' }] };
   if (r.v === 'calendar') return { title: t('k.nav.calendar'), items: [], base: [{ v: 'home' }] };
   return { title: '', items: [], base: [{ v: 'home' }] };
+}
+
+const plTxt = (x) => (typeof x === 'string' ? x : x?.pl || '');
+const cut = (x, n = 80) => { const t = String(x ?? ''); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+const INFO_TAB = { today: 'Dziś', week: '7 dni', cal: 'Kalendarz', news: 'Aktualności', practical: 'Informacje praktyczne' };
+/** Bieżący widok kiosku po ludzku (dla panelu zarządzania – zawsze po polsku, niezależnie od języka zwiedzającego). */
+export function kioskViewName(cur, s) {
+  const p = cur?.p || {}; const ttl = (pre, x) => (x ? `${pre}: ${cut(plTxt(x))}` : pre);
+  switch (cur?.v) {
+    case 'home': return 'Ekran startowy';
+    case 'about': return 'O Fabryce Pełnej Życia';
+    case 'news': return ttl('Aktualność', s.news.find((n) => n.id === p.id)?.title);
+    case 'map': return ttl('Mapa', (p.poiId && sel.poi(p.poiId)?.name) || (p.venueId && s.venues?.find((v) => v.id === p.venueId)?.name));
+    case 'info': return `Informacje – ${INFO_TAB[p.tab] || INFO_TAB.today}`;
+    case 'event': return ttl('Wydarzenie', sel.event(p.id)?.title);
+    case 'cat': return ttl('Dział', sel.category(p.id)?.name);
+    case 'entry': return ttl('Wpis', sel.entry(p.id)?.title);
+    case 'gallery': return 'Galeria zdjęć';
+    case 'videos': return 'Galeria filmów';
+    case 'video': return ttl('Film', s.videos.find((v) => v.id === p.id)?.title);
+    case 'timeline': return 'Oś czasu';
+    case 'puzzle': return 'Ułóż oś czasu (gra)';
+    case 'sound': return 'Dźwięki miasta';
+    case 'calendar': return 'Kalendarium';
+    default: return String(cur?.v || 'Ekran startowy');
+  }
 }
 
 export function KioskScreen({ deviceId, sound, activityRef, standalone }) {
@@ -131,6 +158,14 @@ export function KioskScreen({ deviceId, sound, activityRef, standalone }) {
   const ctx = { device, kiosk, nav, takeHome, sound, zoneTop: z0, panelTop, mode };
   const dim = device.brightness != null && device.brightness < 80 ? Math.min(0.75, ((80 - device.brightness) / 80) * 0.8) : 0; // 80% = jasność nominalna
 
+  // strona na urządzeniu: co kiosk teraz pokazuje – zapis w pamięci, trafia do najbliższego sygnału dla panelu (presence.js)
+  if (standalone) {
+    const pw = device.power;
+    setNowPlaying(deviceId, { kind: 'kiosk', state: pw === 'on' ? 'działa' : pw === 'off' ? (device.schedule === 'auto' ? 'wyłączony wg harmonogramu' : 'wyłączony w panelu') : pw === 'service' ? 'przerwa serwisowa' : 'awaria',
+      view: pw === 'on' ? kioskViewName(cur, s) : null, idle: pw === 'on' && attract,
+      overlay: pw !== 'on' ? null : svc ? 'menu serwisowe' : th ? 'kod „zabierz do domu”' : pjm ? 'połączenie z tłumaczem PJM' : null,
+      sound: sound?.offHook ? cut(plTxt(sound.track?.title || sound.track?.name) || 'ścieżka') : null });
+  }
   if (device.power === 'off') return <div class="k-screen k-off" aria-label="Ekran wyłączony" />;
   if (device.power === 'service' || device.power === 'fault') {
     const f = device.power === 'fault';

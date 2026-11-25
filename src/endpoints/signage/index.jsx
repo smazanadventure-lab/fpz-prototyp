@@ -11,6 +11,7 @@ import { VideoSim } from '../../ui/media.jsx';
 import { LiveVideo, useLiveWatch } from '../../ui/live.jsx';
 import { mediaItem, isMediaRef, itemVideoFile, itemIssue, codecLabel } from '../../kernel/media.js';
 import { usePreload, fileState, markFailed } from './preload.js';
+import { setNowPlaying } from '../../kernel/presence.js';
 
 if (typeof window !== 'undefined') window.__fpzKiosk = Object.assign(window.__fpzKiosk || {}, { makeApi, getState });
 
@@ -59,7 +60,32 @@ export function playlistFiles(s, devices) {
 }
 const FMT_INC = { hevc: 'HEVC/H.265', h264: 'H.264', av1: 'AV1', vp9: 'VP9' };
 /** Opis pominiętej pozycji dla symulatora (techniczny, nie na sam ekran). */
-export const skipText = (k) => `Pominięto: ${k.item.title || k.file?.name || 'film'} – ${k.reason === 'download' ? 'nie udało się pobrać pliku' : k.reason === 'film' ? 'film usunięto z CMS' : k.reason === 'file' ? 'plik usunięto z biblioteki' : k.codec && k.codec !== 'h264' ? `ten ekran nie odtwarza formatu ${codecLabel(k.codec)}` : 'ten ekran nie odtwarza tego pliku'}`;
+const skipReason = (k) => (k.reason === 'download' ? 'nie udało się pobrać pliku' : k.reason === 'film' ? 'film usunięto z CMS' : k.reason === 'file' ? 'plik usunięto z biblioteki' : k.codec && k.codec !== 'h264' ? `ten ekran nie odtwarza formatu ${codecLabel(k.codec)}` : 'ten ekran nie odtwarza tego pliku');
+export const skipText = (k) => `Pominięto: ${k.item.title || k.file?.name || 'film'} – ${skipReason(k)}`;
+const cut = (x, n = 80) => { const t = String(x ?? ''); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+/**
+ * Co ekran teraz pokazuje – krótki opis do sygnału dla panelu (presence.js → setNowPlaying).
+ * state: gra playlistę / wyłączony wg harmonogramu / wyłączony w panelu / przerwa serwisowa / awaria / playlista nie ma nic do pokazania / brak playlisty.
+ */
+export function nowInfo(s, device, p, files) {
+  const pw = device.power; const out = { kind: 'screen', playlist: p.pl ? cut(p.pl.name) : null };
+  if (pw === 'off') out.state = device.schedule === 'auto' ? 'wyłączony wg harmonogramu' : 'wyłączony w panelu';
+  else if (pw === 'service') out.state = 'przerwa serwisowa';
+  else if (pw === 'fault') out.state = 'awaria';
+  else out.state = p.item ? 'gra playlistę' : p.nothing ? 'playlista nie ma nic do pokazania' : 'brak playlisty';
+  const it = pw === 'on' ? p.item : null;
+  if (it) {
+    out.pos = [p.idx + 1, p.timed.length]; const f = itemVideoFile(s, it); const v = !f && it.type === 'video' ? s.videos.find((x) => x.id === it.ref) : null;
+    const cam = s.live.onAir && !!s.live.streamId;
+    out.item = { type: it.type, title: cut(it.title || (v && v.title?.pl) || f?.name || '') };
+    if (it.type === 'video') out.item.src = f ? 'plik' : v?.kind === 'live' ? (cam ? 'transmisja z kamery' : 'transmisja symulowana') : 'film symulowany';
+    else if (it.type === 'captions') out.item.src = cam ? 'transmisja z kamery' : s.live.onAir ? 'transmisja symulowana' : 'oczekiwanie na transmisję';
+    const st = f && files ? files(f.id) : null; if (f && files && (!st || st.state === 'loading')) out.loading = Math.round((st?.progress || 0) * 100);
+    if (p.live) out.live = true;
+  }
+  if (p.skipped.length) out.skipped = p.skipped.slice(0, 5).map((k) => ({ title: cut(k.item.title || k.file?.name || 'pozycja'), reason: skipReason(k) }));
+  return out;
+}
 const reported = new Set(); // urządzenie + plik – zgłoszenie raz na kartę (i nie powtarzamy, gdy otwarte zgłoszenie już jest)
 /** Pliki, których ekran nie odtwarza / nie pobrał → jedno zgłoszenie usterki na urządzenie i plik w „Zarządzaniu ekspozycją”. */
 function useFileIncidents(s, devices, files) {
@@ -95,6 +121,7 @@ function StandaloneScreen({ id }) {
         <ul>{list.map((d) => <li key={d.id}><a href={'/lcd/' + d.id}><code>/lcd/{d.id}</code></a> – {d.name}</li>)}</ul></div>
     </div>);
   const p = playback(s, device, now.getTime(), files);
+  setNowPlaying(device.id, nowInfo(s, device, p, files)); // tylko zapis w pamięci – trafi do najbliższego sygnału
   return (
     <div class="ep-signage s-sa fpz-theme" data-theme="light">
       <ScaleBox width={W} height={H} maxScale={4}>
@@ -255,16 +282,21 @@ function CaptionsSlide() {
     <LiveCaptions lines={4} class="s-caps__lines" idleText="…" />
   </div>);
 }
-/** Napisy na żywo z obrazem z kamery telefonu: obraz nad napisami (kamera pozioma) albo obok nich (telefon trzymany pionowo).
- *  Bez nadawcy (stan 'ended') i bez WebRTC – dotychczasowa plansza samych napisów. */
+/**
+ * Napisy na żywo z obrazem z kamery telefonu. Układ zależy od proporcji obrazu (videoWidth/videoHeight) i od tego, czy są już napisy:
+ *  bez napisów – obraz na środku, możliwie duży (pionowy i poziomy); napisy + obraz poziomy – obraz u góry, napisy pod nim;
+ *  napisy + obraz pionowy – obraz po lewej na całą wysokość, napisy po prawej.
+ *  Bez nadawcy (stan 'ended') i bez WebRTC – dotychczasowa plansza samych napisów.
+ */
 function CamCaptions({ live: L }) {
-  const [st, setSt] = useState('connecting'); const [portrait, setPortrait] = useState(false);
-  const cam = st !== 'ended' && st !== 'unsupported';
-  return (<div class={clsx('s-caps', cam && 's-caps--cam', cam && portrait && 'is-portrait')} data-cam={st}>
+  const [st, setSt] = useState('connecting'); const [asp, setAsp] = useState(null); // [szer, wys] obrazu, gdy już znane
+  const cam = st !== 'ended' && st !== 'unsupported'; const portrait = !!asp && asp[1] > asp[0]; const hasCaps = L.captions.length > 0;
+  const layout = !cam ? null : !hasCaps ? 'nocaps' : portrait ? 'portrait' : 'landscape';
+  return (<div class={clsx('s-caps', cam && 's-caps--cam', layout && 'is-' + layout)} data-cam={st} data-layout={layout || 'plain'}>
     <header class="s-caps__head"><Tag tone="live">{tr('pl', 's.live')} · LIVE</Tag><h1>{L.title?.pl}</h1><span class="s-caps__note"><Icon name="captions" size={30} /> {st === 'unsupported' ? tr('pl', 's.camOff') : tr('pl', 's.respeak')}</span></header>
     <div class="s-caps__body">
-      <LiveVideo streamId={L.streamId} chromeless showTitle={false} showCaptions={false} showViewers={false} ratio={null} class="s-caps__video" fallback={null} onState={setSt} onAspect={(w, h) => setPortrait(h > w)} />
-      <LiveCaptions lines={cam ? (portrait ? 6 : 2) : 4} class="s-caps__lines" idleText="…" />
+      <LiveVideo streamId={L.streamId} chromeless showTitle={false} showCaptions={false} showViewers={false} ratio={null} class="s-caps__video" fallback={null} onState={setSt} onAspect={(w, h) => setAsp((a) => (a && a[0] === w && a[1] === h ? a : [w, h]))} />
+      {layout !== 'nocaps' && <LiveCaptions lines={cam ? (portrait ? 6 : 2) : 4} class="s-caps__lines" idleText="…" />}
     </div>
   </div>);
 }

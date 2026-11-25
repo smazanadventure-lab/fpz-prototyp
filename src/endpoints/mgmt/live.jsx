@@ -5,6 +5,7 @@ import { getState } from '../../kernel/store.js';
 import { fmtTime, fmtDateTime, fmtDuration } from '../../kernel/util.js';
 import { Icon, Button, Tag, Notice, Empty, Input, LiveCaptions, Field, QR } from '../../ui/components.jsx';
 import { routeHref } from '../../shell/standalone.jsx';
+import { LiveVideo } from '../../ui/live.jsx';
 import { useX, useTick, Head, Panel } from './common.jsx';
 
 const SAMPLE = [
@@ -48,10 +49,13 @@ export function Live() {
         <p class="x-muted x-small">Napisy trafiają na ekrany z pozycją „Napisy na żywo” w playliście ({lcd.map((d) => d.id).join(', ') || 'brak'}), do aplikacji mobilnej i na stronę WWW. Obraz: symulacja – albo prawdziwy obraz z kamery telefonu (karta „Nadawaj z telefonu”).</p>
       </Panel>
       <Panel title="Podgląd ekranu napisów" icon="tv">
-        <div class="x-lcdprev">
+        <div class={`x-lcdprev${cam ? ' x-lcdprev--cam' : ''}`} data-testid="x-lcdprev" data-cam={cam ? 'yes' : 'no'}>
           <div class="x-lcdprev__top">{live.onAir ? <Tag tone="live">Na żywo</Tag> : <Tag>offline</Tag>}<b>{live.title?.pl}</b></div>
-          <LiveCaptions lines={3} class="x-lcdprev__caps" />
+          {/* prawdziwy obraz z telefonu (ten sam odbiornik co na ekranach); odbiór tylko, dopóki ta zakładka jest otwarta */}
+          {cam && <LiveVideo key={live.streamId} streamId={live.streamId} chromeless muted showTitle={false} showCaptions={false} showViewers={false} ratio={null} class="x-lcdprev__video" fallback={<div class="x-lcdprev__ended">Nadawca rozłączony – czekam na obraz…</div>} />}
+          <LiveCaptions lines={cam ? 2 : 3} class="x-lcdprev__caps" />
         </div>
+        {cam && <p class="x-muted x-small x-lcdprev__note" data-testid="x-lcdprev-note"><Icon name="info" size={13} /> Podgląd liczy się jako jeden z 6 odbiorców, dopóki ta zakładka jest otwarta.</p>}
       </Panel>
     </div>
     <PhoneCard />

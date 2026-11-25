@@ -80,6 +80,16 @@ function cleanBeat(b, src) {
   for (const k of ['boot', 'lastInput', 'cpu', 'memPct', 'diskFreeGb', 'uptimeH', 'volume', 'brightness', 'tempC']) if (Number.isFinite(+b[k]) && b[k] !== null && b[k] !== '') out[k] = +b[k];
   for (const k of ['fullscreen', 'visible', 'online', 'standalone']) if (typeof b[k] === 'boolean') out[k] = b[k];
   for (const k of ['screen', 'viewport']) if (Array.isArray(b[k])) out[k] = b[k].slice(0, 3).map((x) => +x || 0);
+  // „co teraz na ekranie” – zwykły obiekt do 2500 znaków JSON; teksty do 160 znaków, tablice do 8 pozycji, bez funkcji i głębokich zagnieżdżeń
+  const plain = (v) => v != null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype;
+  const tidy = (v, depth) => {
+    if (v === null || typeof v === 'boolean') return v; if (typeof v === 'number') return Number.isFinite(v) ? v : null; if (typeof v === 'string') return clip(v, 160);
+    if (depth > 3) return undefined;
+    if (Array.isArray(v)) return v.slice(0, 8).map((x) => tidy(x, depth + 1)).filter((x) => x !== undefined);
+    if (plain(v)) { const o = {}; for (const [k, x] of Object.entries(v).slice(0, 24)) { if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue; const y = tidy(x, depth + 1); if (y !== undefined) o[clip(k, 40)] = y; } return o; }
+    return undefined;
+  };
+  if (plain(b.now)) { let txt = ''; try { txt = JSON.stringify(b.now); } catch { txt = ''; } if (txt && txt.length <= 2500) out.now = tidy(b.now, 0); }
   return out;
 }
 

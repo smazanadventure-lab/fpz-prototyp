@@ -109,7 +109,9 @@
 .ep-signage .s-caps__video .md-video__frame { height: 100%; }
 .ep-signage .s-caps--cam .s-caps__lines.fpz-captions { flex: none; min-height: 2.6em; gap: 6px; padding-top: 18px; font-size: 62px; line-height: 1.18; }
 .ep-signage .s-caps--cam.is-portrait .s-caps__body { flex-direction: row; gap: 56px; }
-.ep-signage .s-caps--cam.is-portrait .s-caps__video { flex: none; height: auto; align-self: stretch; aspect-ratio: 9 / 16; margin-bottom: 0; }
+.ep-signage .s-caps--cam.is-portrait .s-caps__video { flex: none; height: auto; align-self: stretch; aspect-ratio: 9 / 16; margin-bottom: 0; max-width: 46%; }
+/* jeszcze bez napisów: sam obraz, wyśrodkowany i możliwie duży (object-fit: contain – pionowy albo poziomy) */
+.ep-signage .s-caps--cam.is-nocaps .s-caps__video { flex: 1; margin-top: 26px; }
 .ep-signage .s-caps--cam.is-portrait .s-caps__lines.fpz-captions { flex: 1; min-width: 0; justify-content: flex-end; padding-top: 22px; font-size: 66px; }
 .ep-signage .s-caps--wait { align-items: center; justify-content: center; gap: 26px; text-align: center; background: #0d1f16; }
 .ep-signage .s-caps--wait > svg { color: var(--c-green); }

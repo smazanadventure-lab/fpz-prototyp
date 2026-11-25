@@ -45,8 +45,77 @@ export function Devices() {
         <span role="cell" class="x-c-net">{pg ? <><code>{pg.ip || ag?.ip || 'IP nieznany'}</code><small>{pg.ver === s.build ? 'wersja aktualna' : <span class="x-bad">wersja nieaktualna</span>}</small></> : <><code>{d.ip}</code><small>v{d.appVersion}</small></>}</span>
         <span role="cell" class="x-c-pl">{pl(d.playlistId) || <span class="x-muted">{d.kind === 'kiosk' ? 'aplikacja kiosku' : '—'}</span>}</span>
         <span role="cell" class="x-c-mode"><Tag tone={d.schedule === 'manual' ? 'warn' : d.schedule === 'always' ? 'info' : 'green'}>{d.schedule === 'auto' ? 'auto' : d.schedule === 'manual' ? 'ręczny' : '24/7'}</Tag></span>
+        {remote && (PAGE_KINDS[d.kind] || pg) && <span role="cell" class="x-devrow__now"><NowLine link={k} presence={presence} compact /></span>}
       </button>); })}
     </div> : <Empty icon="filter" title={onlyOn ? 'Żadne urządzenie nie jest teraz podłączone' : 'Brak urządzeń dla wybranych filtrów'} text={onlyOn ? 'Otwórz na urządzeniu jego adres (szczegóły urządzenia → „Stan rzeczywisty”).' : undefined} />}
+  </div>);
+}
+
+const mmss = (x) => (Number.isFinite(x) ? `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}` : '—');
+const TYPE_PL = { video: 'Film', captions: 'Napisy na żywo', image: 'Obraz', news: 'Aktualności', events: 'Wydarzenia', rss: 'Wiadomości RSS', clock: 'Zegar', weather: 'Pogoda' };
+const STATE_PL = { 'wyłączony wg harmonogramu': 'Wyłączony według harmonogramu', 'wyłączony w panelu': 'Wyłączony w panelu', 'przerwa serwisowa': 'Przerwa serwisowa – plansza serwisowa', awaria: 'Awaria – plansza „chwilowo niedostępny”', 'brak playlisty': 'Brak przypisanej playlisty' };
+const q = (t) => `„${t}”`;
+/**
+ * „Teraz na ekranie” z raportu strony urządzenia (sygnał page.now) → { tone, main, extra[] } po polsku.
+ * tone: ok | info | warn | bad | muted. Raport bez treści (stara wersja strony) / brak sygnału → null.
+ */
+export function nowSummary(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  // raport pochodzi z urządzenia – tylko teksty i liczby w oczekiwanych polach, reszta pomijana
+  const txt = (x) => (typeof x === 'string' ? x : typeof x === 'number' && Number.isFinite(x) ? String(x) : '');
+  const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : null);
+  const obj = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x : null);
+  const it0 = obj(raw.item) || {}; const m0 = obj(raw.media);
+  const n = { kind: txt(raw.kind), state: txt(raw.state), playlist: txt(raw.playlist), view: txt(raw.view), overlay: txt(raw.overlay), sound: txt(raw.sound), idle: raw.idle === true,
+    loading: num(raw.loading), pos: Array.isArray(raw.pos) && num(raw.pos[0]) != null && num(raw.pos[1]) != null ? raw.pos : null,
+    skipped: Array.isArray(raw.skipped) ? raw.skipped.map(obj).filter(Boolean).map((k) => ({ title: txt(k.title), reason: txt(k.reason) })) : [],
+    item: { type: txt(it0.type), title: txt(it0.title), src: txt(it0.src) } };
+  const m = m0 && { advancing: m0.advancing === true ? true : m0.advancing === false ? false : null, gone: m0.gone === true, pos: num(m0.pos), dur: num(m0.dur), w: num(m0.w), h: num(m0.h), muted: m0.muted === true, paused: m0.paused === true, ready: num(m0.ready) ?? 4, error: txt(m0.error) || (m0.error ? 'nieznany' : ''), src: txt(m0.src) };
+  const extra = [];
+  const mediaTxt = () => {
+    if (!m) return null;
+    if (m.error) return { tone: 'bad', txt: `Błąd odtwarzania: ${m.error}` };
+    if (m.advancing === null) return { tone: 'info', txt: 'obraz właśnie się zmienia' };
+    if (m.advancing) return { tone: 'ok', txt: m.src === 'kamera – transmisja' ? 'obraz płynie' : m.dur ? `odtwarza się, ${mmss(m.pos)} z ${mmss(m.dur)}` : 'obraz płynie' };
+    return { tone: 'warn', txt: `stoi w miejscu – obraz się nie przesuwa${m.paused ? ' (wstrzymany)' : m.ready < 3 ? ' (brak danych do odtworzenia)' : ''}` };
+  };
+  const tech = () => { if (m && m.src) extra.push(`źródło obrazu: ${m.src}${m.w && m.h ? ` · ${m.w}×${m.h}` : ''}${m.muted ? ' · bez dźwięku' : ''}`); };
+  if (n.kind === 'kiosk') {
+    if (n.state && n.state !== 'działa') return { tone: n.state === 'awaria' ? 'bad' : 'muted', main: STATE_PL[n.state] || n.state, extra };
+    let main = `${n.view || 'widok nieznany'}${n.idle ? ' · bezczynny (wygaszacz)' : ''}`; let tone = n.idle ? 'muted' : 'ok';
+    if (n.overlay) main += ` · ${n.overlay}`; if (n.sound) main += ` · słuchawka podniesiona: ${q(n.sound)}`;
+    const mt = mediaTxt(); if (mt) { main += ` · film ${mt.txt}`; if (mt.tone !== 'ok') tone = mt.tone; tech(); }
+    return { tone, main, extra };
+  }
+  const pl = n.playlist ? ` playlisty ${q(n.playlist)}` : '';
+  if (n.skipped.length) extra.push('Pominięte: ' + n.skipped.map((k) => `${q(k.title || 'pozycja')} (${k.reason || 'powód nieznany'})`).join(', '));
+  if (n.state !== 'gra playlistę') {
+    if (n.state === 'playlista nie ma nic do pokazania') return { tone: 'warn', main: `Playlista${n.playlist ? ' ' + q(n.playlist) : ''} nie ma nic do pokazania`, extra };
+    return { tone: n.state === 'awaria' ? 'bad' : n.state === 'brak playlisty' ? 'warn' : 'muted', main: STATE_PL[n.state] || String(n.state || 'stan nieznany'), extra };
+  }
+  const it = n.item; const pos = n.pos ? ` · pozycja ${n.pos[0]} z ${n.pos[1]}${pl}` : '';
+  if (n.loading != null) return { tone: 'info', main: `Wczytuje film ${q(it.title || '…')} – ${n.loading}%${pos}`, extra };
+  const srcTxt = it.src ? ` (${it.src})` : ''; const label = TYPE_PL[it.type] || 'Pozycja';
+  if (it.src === 'transmisja z kamery') { const mt = mediaTxt(); if (mt) tech(); return { tone: mt ? mt.tone : 'warn', main: mt?.tone === 'bad' ? mt.txt : `Transmisja z kamery – ${mt ? mt.txt : 'brak obrazu na stronie'}${pos}`, extra }; }
+  const head = `${label}${it.title && it.type !== 'clock' && it.type !== 'weather' ? ' ' + q(it.title) : ''}${srcTxt}`;
+  const mt = mediaTxt();
+  if (mt) { tech(); if (mt.tone === 'bad') return { tone: 'bad', main: mt.txt, extra: [`${head}${pos}`, ...extra] }; return { tone: mt.tone, main: `${head} – ${mt.txt}${pos}`, extra }; }
+  if (it.type === 'video' && it.src === 'plik') return { tone: 'warn', main: `${head} – na stronie nie ma odtwarzacza wideo${pos}`, extra };
+  return { tone: it.type === 'video' && it.src !== 'plik' ? 'info' : 'ok', main: `${head}${it.src === 'film symulowany' || it.src === 'transmisja symulowana' ? ' – symulacja, bez prawdziwego pliku' : ''}${pos}`, extra };
+}
+const NOW_IC = { ok: 'play', info: 'info', warn: 'alert', bad: 'circleAlert', muted: 'moon' };
+/** Blok „Teraz na ekranie” (lista i szczegóły urządzenia) – tylko w wersji serwerowej. */
+export function NowLine({ link, presence, compact }) {
+  if (!presence || presence.mode !== 'remote' || link.state === 'loading' || link.state === 'local') return null;
+  const pg = link.page; const n = pg?.now; const sum = n ? nowSummary(n) : null;
+  if (!sum) return <div class="x-now x-now--none" data-testid="x-now" data-now="none"><Icon name="monitor" size={14} /><span><b class="x-now__lbl">Teraz na ekranie:</b> brak danych o treści (urządzenie nie zgłosiło)</span></div>;
+  const ageSec = Math.max(0, (Date.now() + (presence.skew || 0) - (pg.at || 0)) / 1000); const stale = ageSec * 1000 > (presence.staleMs || 100000);
+  const tone = stale ? 'stale' : sum.tone;
+  const age = <small class="x-now__age">{stale ? `stan sprzed ${agoTxt(ageSec)} – brak sygnału, raport nieaktualny` : `stan sprzed ${agoTxt(ageSec)}`}{!stale && pg.visible === false ? <b class="x-now__bg"> · karta w tle – przeglądarka mogła wstrzymać obraz</b> : ''}</small>;
+  return (<div class={`x-now x-now--${tone}${compact ? ' x-now--compact' : ''}`} data-testid="x-now" data-now={tone} data-media={n.media && typeof n.media === 'object' ? (n.media.advancing === true ? 'advancing' : 'still') : 'none'}>
+    <Icon name={stale ? 'clock' : NOW_IC[sum.tone] || 'monitor'} size={14} />
+    <span class="x-now__txt"><b class="x-now__lbl">{stale ? 'Ostatnio:' : 'Teraz na ekranie:'}</b> <span class="x-now__main">{sum.main}</span>
+      {compact && age}{sum.extra.map((x, i) => <small key={i} class="x-now__extra">{x}</small>)}{!compact && age}</span>
   </div>);
 }
 
@@ -78,6 +147,7 @@ export function DeviceModal({ id, onClose }) {
   const displays = DISPLAY_KINDS.includes(d.kind);
   return (<Modal open onClose={onClose} size="lg" class="x-devmodal" title={<span class="x-devmodal__t"><Icon name={KINDS[d.kind]?.icon} size={22} />{d.name}<PowerBadge power={d.power} /></span>}>
     <div class="x-devmeta"><span><Icon name="mapPin" size={14} />{zoneName(d.zone)}</span><span><Icon name="tag" size={14} />{d.id}</span><span><Icon name="cpu" size={14} />{d.model}</span>{remote ? <LinkBadge link={link} /> : <span><Icon name="clock" size={14} />kontakt {ago(d.lastSeen)} <SimMark /></span>}</div>
+    {remote && (PAGE_KINDS[d.kind] || link.page) && <NowLine link={link} presence={presence} />}
     {d.kind === 'kiosk' && !remote && <Notice icon="eye">Podgląd ekranu tego kiosku: zakładka „Kioski” w powłoce prototypu – zmiany wprowadzone tutaj widać tam od razu.</Notice>}
     <Tabs value={tab} onChange={setTab} tabs={[{ id: 'ctl', label: 'Sterowanie', icon: 'sliders' }, { id: 'real', label: 'Stan rzeczywisty', icon: 'activity' }, { id: 'info', label: 'Wyposażenie i sieć', icon: 'server' }, { id: 'hist', label: 'Historia zdarzeń', icon: 'history' }]} />
     {tab === 'ctl' && <div class="x-devctl">

@@ -40,13 +40,13 @@ export function useLiveWatch(streamId) {
  * props: streamId, title, chromeless (ekran LCD – bez kontrolek, bez przycisku „Włącz dźwięk”), showTitle, showCaptions (napisy na obrazie),
  *   showViewers, ratio ('16/9'; null – wypełnia rodzica), class,
  *   fallback – co pokazać w stanie 'ended' (nadawca zniknął), unsupported – przy braku WebRTC (domyślnie fallback),
- *   onState(stan), onAspect(szer, wys) – wymiary obrazu (np. telefon trzymany pionowo).
+ *   onState(stan), onAspect(szer, wys) – wymiary obrazu (np. telefon trzymany pionowo), muted – od początku bez dźwięku (podgląd w panelu).
  */
-export function LiveVideo({ streamId, title, chromeless, showTitle = true, showCaptions = true, showViewers = true, ratio = '16/9', class: cls, fallback, unsupported, onState, onAspect }) {
+export function LiveVideo({ streamId, title, chromeless, showTitle = true, showCaptions = true, showViewers = true, ratio = '16/9', class: cls, fallback, unsupported, onState, onAspect, muted = false }) {
   const { t: tr } = useClient(); const s = useStore();
   const { state, stream } = useLiveWatch(streamId);
   const ref = useRef(null); const rootRef = useRef(null);
-  const [mute, setMute] = useState(false); const [blocked, setBlocked] = useState(false); const [paused, setPaused] = useState(false);
+  const [mute, setMute] = useState(!!muted); const [blocked, setBlocked] = useState(false); const [paused, setPaused] = useState(false);
   const [cc, setCc] = useState(showCaptions); const [fs, setFs] = useState(false); const [portrait, setPortrait] = useState(false);
   const fsOk = typeof document !== 'undefined' && !!document.fullscreenEnabled && !chromeless;
   const stRef = useRef(onState); stRef.current = onState; const asRef = useRef(onAspect); asRef.current = onAspect;

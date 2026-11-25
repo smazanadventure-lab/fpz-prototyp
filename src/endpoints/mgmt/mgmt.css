@@ -322,6 +322,15 @@
 .ep-mgmt .x-lcdprev__caps { font-size: var(--fs-lg); line-height: 1.35; font-weight: 700; }
 .ep-mgmt .x-lcdprev__caps p { animation: x-in .25s ease; }
 .ep-mgmt .x-lcdprev__caps p:not(:last-child) { opacity: .6; }
+/* transmisja z kamery telefonu: prawdziwy obraz w podglądzie, napisy pod nim (jak na ekranie LCD) */
+.ep-mgmt .x-lcdprev--cam { background: #000; color: #fff; padding: var(--sp-3); gap: var(--sp-2); justify-content: flex-start; }
+.ep-mgmt .x-lcdprev__video { flex: 1; min-height: 0; margin: 0; border-radius: var(--r-sm); box-shadow: none; background: #000; }
+.ep-mgmt .x-lcdprev__video .md-video__frame { height: 100%; }
+.ep-mgmt .x-lcdprev__video .md-video__top { display: none; }
+.ep-mgmt .x-lcdprev--cam .x-lcdprev__caps { flex: none; font-size: var(--fs-md); line-height: 1.3; }
+.ep-mgmt .x-lcdprev--cam .x-lcdprev__caps p:last-child { color: #FFE600; }
+.ep-mgmt .x-lcdprev__ended { flex: 1; display: grid; place-items: center; color: #bbb; font-size: var(--fs-sm); }
+.ep-mgmt .x-lcdprev__note { display: flex; align-items: center; gap: var(--sp-1); margin: var(--sp-2) 0 0; }
 .ep-mgmt .x-respeak { display: flex; gap: var(--sp-2); }
 .ep-mgmt .x-respeak .fpz-input { font-size: var(--fs-md); min-height: calc(var(--u) * 52); }
 .ep-mgmt .x-caplog { display: flex; flex-direction: column; max-height: calc(var(--u) * 240); overflow: auto; border-radius: var(--r-md); background: var(--c-surface-2); padding: var(--sp-2) var(--sp-3); }
@@ -424,6 +433,30 @@
 .ep-mgmt .x-cmd--wait { background: var(--c-warn-bg); color: var(--c-text); } .ep-mgmt .x-cmd--wait > svg { color: var(--c-warn); }
 .ep-mgmt .x-cmd--bad { background: var(--c-danger-bg); color: var(--c-text); } .ep-mgmt .x-cmd--bad > svg { color: var(--c-danger); }
 .ep-mgmt .x-cmd--info { background: var(--c-info-bg); color: var(--c-text); } .ep-mgmt .x-cmd--info > svg { color: var(--c-info); }
+/* „Teraz na ekranie” – raport strony urządzenia (lista i szczegóły) */
+.ep-mgmt .x-now { display: flex; align-items: flex-start; gap: var(--sp-2); padding: calc(var(--u) * 6) var(--sp-3); border-radius: var(--r-md); font-size: var(--fs-xs); line-height: 1.45; background: var(--c-surface-2); color: var(--c-text); border-left: calc(var(--u) * 3) solid var(--c-line); min-width: 0; }
+.ep-mgmt .x-now > svg { flex: none; margin-top: calc(var(--u) * 2); }
+.ep-mgmt .x-now__txt { min-width: 0; overflow-wrap: anywhere; }
+.ep-mgmt .x-now__lbl { font-weight: 700; color: var(--c-text-2); }
+.ep-mgmt .x-now small, .ep-mgmt .x-devrow .x-now small { display: block; color: var(--c-text-3); font-size: var(--fs-2xs); }
+.ep-mgmt .x-now .x-now__extra { color: var(--c-text-2); }
+.ep-mgmt .x-now--ok { background: var(--c-ok-bg); border-left-color: var(--c-ok); } .ep-mgmt .x-now--ok > svg { color: var(--c-ok); }
+.ep-mgmt .x-now--info { background: var(--c-info-bg); border-left-color: var(--c-info); } .ep-mgmt .x-now--info > svg { color: var(--c-info); }
+.ep-mgmt .x-now--warn { background: var(--c-warn-bg); border-left-color: var(--c-warn); } .ep-mgmt .x-now--warn > svg { color: var(--c-warn); }
+.ep-mgmt .x-now--bad { background: var(--c-danger-bg); border-left-color: var(--c-danger); } .ep-mgmt .x-now--bad > svg { color: var(--c-danger); }
+.ep-mgmt .x-now--muted > svg, .ep-mgmt .x-now--none > svg { color: var(--c-text-3); }
+.ep-mgmt .x-now--none, .ep-mgmt .x-now--stale { color: var(--c-text-3); background: transparent; border-left: 0; padding-left: 0; }
+.ep-mgmt .x-now--stale { opacity: .8; }
+.ep-mgmt .x-now .x-now__bg { color: var(--c-warn); font-weight: 600; }
+.ep-mgmt .x-now--stale .x-now__main, .ep-mgmt .x-now--stale .x-now__lbl { color: var(--c-text-3); }
+.ep-mgmt .x-now--compact { padding: calc(var(--u) * 3) var(--sp-2); }
+.ep-mgmt .x-now--compact.x-now--none, .ep-mgmt .x-now--compact.x-now--stale { padding: 0; }
+.ep-mgmt .x-now--compact small { display: inline !important; margin-left: var(--sp-2); }
+.ep-mgmt .x-now--compact .x-now__extra { display: block !important; margin-left: 0; }
+.ep-mgmt .x-devrow > .x-devrow__now { grid-column: 1 / -1; display: block; order: 9; }
+.ep-mgmt .x-devmodal .x-now { margin: 0; }
+/* treść okna urządzenia jest przewijana – żaden blok (zwłaszcza pasek zakładek) nie może się w niej zgniatać */
+.ep-mgmt .x-devmodal .fpz-modal__body > * { flex-shrink: 0; }
 @keyframes x-fade { from { opacity: 0; transform: translateY(calc(var(--u) * -3)); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ep-mgmt .x-cmd { animation: none; } }
 .ep-mgmt .x-real { display: flex; flex-direction: column; gap: var(--sp-3); }
