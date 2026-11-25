@@ -26,8 +26,8 @@ jobs:
             if [ "$code" != "200" ]; then echo "::error::$p zwraca $code"; fail=1; fi
           done
           for f in FPZ-prototyp-wersja-testowa.html FPZ-kody-QR-do-testow.pdf FPZ-kiosk-windows.zip; do
-            out=$(curl -s -o /dev/null -D - -w 'kod=%{http_code} rozmiar=%{size_download}' "$BASE/pobierz/$f"); code=$(echo "$out" | grep -o 'kod=[0-9]*' | cut -d= -f2); size=$(echo "$out" | grep -o 'rozmiar=[0-9]*' | cut -d= -f2); disp=$(echo "$out" | grep -i '^content-disposition' | tr -d '\r' | head -1)
-            echo "/pobierz/$f -> $code, $size B, ${disp:-brak Content-Disposition}"
+            out=$(curl -s -L -o /dev/null -D - -w 'kod=%{http_code} rozmiar=%{size_download} adres=%{url_effective}' "$BASE/pobierz/$f"); code=$(echo "$out" | grep -o 'kod=[0-9]*' | cut -d= -f2); size=$(echo "$out" | grep -o 'rozmiar=[0-9]*' | cut -d= -f2); disp=$(echo "$out" | grep -i '^content-disposition' | tr -d '\r' | tail -1); ctype=$(echo "$out" | grep -i '^content-type' | tr -d '\r' | tail -1); final=$(echo "$out" | grep -o 'adres=.*' | cut -d= -f2)
+            echo "::notice title=Pliki do pobrania::/pobierz/$f -> $code, $size B, ${disp:-brak Content-Disposition}, $ctype, adres końcowy: $final"
             if [ "$code" != "200" ] || [ "${size:-0}" -lt 10000 ] || ! echo "$disp" | grep -qi attachment; then echo "::error::/pobierz/$f: kod $code, $size B, ${disp:-brak Content-Disposition}"; fail=1; fi
           done
           echo "::notice::Strony: $([ -z "$fail" ] && echo 'wszystkie adresy odpowiadają 200' || echo 'są błędy')"
